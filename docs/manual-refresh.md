@@ -2,6 +2,8 @@
 
 This workflow reads Yahoo website pages using an already authorized browser session. It does not call the Fantasy Sports API. No transactions are part of a refresh.
 
+For the local app, the operator may copy the latest validated JSON to ignored `private/snapshots/current.json`. On opening the dashboard, the authenticated owner can receive this local refresh automatically. The server endpoint is owner-protected, uses a fixed path, validates the file and disables itself on Vercel or a non-loopback configured origin. Hosted operation continues to use browser file selection. No snapshot is embedded in the public source or build.
+
 1. Ask the assistant to refresh Fantasy GM, information gathering only. Sign in yourself when needed.
 2. Read the selected league's My Team, Matchups, League standings, Scoring & Settings, and Players pages. Reload stale pages and verify the season and week. Record source URLs, capture time including offset, injuries, actual/projected points, FAAB, waiver dates, scoring, and collection limits.
 3. Save a version 1 JSON snapshot outside the public repository, under ignored `private/snapshots/`. Include all required fields described below. Use null or omit unknown optional values; do not silently reuse stale data. Never include passwords, OAuth tokens, cookies, session IDs or account details.

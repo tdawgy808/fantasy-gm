@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MAX_SNAPSHOT_BYTES, manualProvider, snapshotAgeHours, type Snapshot } from "@/lib/fantasy/snapshot";
 import { available, completed, recommendations, standings, unavailable } from "@/lib/fantasy/analysis";
 
@@ -16,6 +16,19 @@ export default function ManualRefresh() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [position, setPosition] = useState("ALL");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/manual/local", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) return;
+        const next = await manualProvider.load(await response.text());
+        setSnapshot(current => current ?? next);
+      } catch { /* The optional local handoff must not block manual file import. */ }
+    })();
+    return () => controller.abort();
+  }, []);
 
   async function importFile(file: File | undefined) {
     if (!file) return; setError(""); setLoading(true);
