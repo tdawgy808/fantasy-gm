@@ -1,12 +1,23 @@
 # Local configuration and secrets
 .env
 .env.*
+.env*
 !.env.example
 *credentials*
 *secret*
 *token*
 *.pem
 *.key
+*.pfx
+*.p12
+*.crt
+certificates/
+sessions/
+.sessions/
+*.session
+*.session.json
+cookies*.json
+storageState*.json
 
 # Private data and logs
 data/
@@ -23,6 +34,12 @@ venv/
 __pycache__/
 dist/
 build/
+.next/
+out/
+coverage/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
 
 # Local editor and OS files
 .vscode/

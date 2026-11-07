@@ -4,14 +4,15 @@ Fantasy GM is a personal, noncommercial Yahoo Fantasy Football assistant intende
 
 ## Project status
 
-This project is in planning and development. This repository documents the intended application for a Yahoo Fantasy Sports API access application; it does not yet contain a working integration.
+This project contains a local Next.js application with Yahoo OAuth and a manual, read-only snapshot dashboard. Fantasy Sports API access remains disabled by default pending Yahoo approval. Manual collection reads Yahoo website pages; it does not use the Fantasy Sports API.
 
-## Planned features
+## MVP features
 
 - **Read-only league analytics:** Review authorized league settings, rosters, standings, matchups, and available player statistics.
 - **Lineup recommendations:** Suggest starters and bench options based on league scoring, roster eligibility, and available data.
 - **Waiver analysis:** Evaluate available players and potential pickups against the user's roster needs.
-- **Trade analysis:** Compare proposed trades and their potential effect on roster balance and team performance.
+- **Owner sign-in:** GitHub OAuth restricted to one numeric owner ID, with server-side page and API protection.
+- **Injury information:** Imported status tags and optional dated Yahoo reports; no live news feed.
 
 All recommendations are advisory. The user makes and submits any lineup changes, waiver claims, or trades directly in Yahoo Fantasy Football. The application will not automatically change rosters or execute transactions.
 
@@ -26,7 +27,25 @@ All recommendations are advisory. The user makes and submits any lineup changes,
 
 Yahoo authorization will use OAuth. Client secrets, access tokens, refresh tokens, authorization codes, and private league data must remain outside this public repository. Keep secrets in local environment variables or another private credential store. Do not commit environment files, credential files, API responses, or logs containing personal data.
 
-The public repository contains project documentation only. Authentication and private league data are not published here.
+The public repository contains source code and documentation only. Authentication data, private league snapshots, development certificates, dependencies, and generated output are excluded. The original app and its local credentials remain separate and unchanged.
+
+## Local development
+
+Use Node.js 22.18+ or a newer supported Node LTS. Run `npm ci`, copy `.env.example` to `.env.local`, and configure owner sign-in as described in [deployment setup](docs/deployment.md). Then run `npm run dev`, sign in at `/login`, and open `/dashboard` to import a locally gathered JSON snapshot. Yahoo credentials are not needed for manual review. Files stay in the browser tab and are cleared on reload.
+
+For OAuth development, copy `.env.example` to `.env.local`, fill in your own Yahoo configuration, and keep the API flag false until approval. OAuth cookies are secure and require HTTPS: run `npm run dev -- --experimental-https` and use the exact HTTPS callback registered with Yahoo. Locally generated certificates remain ignored. The original app's credentials and certificates are deliberately not copied into this source migration.
+
+The preserved Yahoo sessions are held only in server memory and disappear when the process restarts. Yahoo token refresh is not yet implemented; these legacy Yahoo routes are disabled on Vercel until durable encrypted storage is implemented. App owner sign-in is separate and uses signed, expiring cookies without a database. No real account setup, deployment or Yahoo transaction has been performed for the MVP.
+
+## Vercel readiness
+
+The manual MVP needs no hosted database. See [deployment and environment variables](docs/deployment.md) for owner account connections, server-side route protection, storage limits, and future API requirements. Automatic Git deployments are explicitly disabled; obtain owner approval before importing or deploying the Vercel project.
+
+## Manual refresh and checks
+
+See [the manual refresh workflow](docs/manual-refresh.md) for collection, import, validation, and the future API adapter boundary. Run `npm test`, `npm run lint`, and `npm run build` to validate changes. `npm run check:publish` scans an explicit source allowlist and verifies private-file exclusions; its local manifest is written under ignored `private/migration-review/`. Publish only the reviewed manifest, never a whole folder upload.
+
+Git ignore rules do not remove previously tracked files. Recheck the Git index or the exact upload manifest before every publication. No snapshot files or real environment files belong in Git.
 
 ## Disclaimer
 
