@@ -8,6 +8,7 @@ import { blobSnapshotStore, hostedStorageConfigured } from "./blob-store";
 import { parseSettings } from "./strategies";
 import { parseResearch } from "./research";
 import type { AnalysisState, AnalysisStore } from "./analysis-service";
+import { privateReadOptions } from "./blob-options";
 
 const blobPath="fantasy-gm/2026/121612/5/analysis-state.json";
 const localPath=join(process.cwd(),"private","analysis-state.json");
@@ -22,7 +23,7 @@ async function localRead(){try{const text=await readFile(localPath,"utf8");retur
 let queue:Promise<void>=Promise.resolve();
 export const analysisStore:AnalysisStore={
   async read(){
-    if(hostedStorageConfigured()) {const result=await get(blobPath,{access:"private",useCache:false});if(!result||result.statusCode!==200)return null;return {value:decode(await boundedText(result.stream)),etag:result.blob.etag};}
+    if(hostedStorageConfigured()) {const result=await get(blobPath,privateReadOptions());if(!result||result.statusCode!==200)return null;return {value:decode(await boundedText(result.stream)),etag:result.blob.etag};}
     if(!localAllowed())throw new Error("Private storage is not configured.");return localRead();
   },
   async write(value,etag){

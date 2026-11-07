@@ -1,5 +1,6 @@
 import { BlobPreconditionFailedError, get, put } from "@vercel/blob";
 import { boundedText, projectSnapshot, SnapshotConflict, type SnapshotStore } from "./hosted";
+import { privateReadOptions } from "./blob-options";
 
 const pathname = "fantasy-gm/2026/121612/5/current.json";
 export function hostedStorageConfigured() {
@@ -7,7 +8,7 @@ export function hostedStorageConfigured() {
 }
 export const blobSnapshotStore: SnapshotStore = {
   async read() {
-    const result = await get(pathname, { access: "private", useCache: false });
+    const result = await get(pathname, privateReadOptions());
     if (!result || result.statusCode !== 200) return null;
     return { snapshot: projectSnapshot(await boundedText(result.stream)), etag: result.blob.etag };
   },

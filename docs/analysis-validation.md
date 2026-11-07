@@ -4,7 +4,7 @@ This release is prepared for owner review. It has not replaced the existing prod
 
 ## Completed checks
 
-- 43 automated tests passed, including existing OAuth/authentication/manual-import regressions and the new engine cases.
+- 44 automated tests passed, including existing OAuth/authentication/manual-import regressions and the new engine cases.
 - ESLint passed without warnings after cleanup.
 - Next.js production build and TypeScript checks passed.
 - Publication allowlist and private-path exclusions passed. The separate audit confirmed the original Yahoo credentials are absent from published files and the underlying Yahoo OAuth flow remains preserved.
@@ -24,3 +24,6 @@ The season model currently supports points-for tiebreakers, not head-to-head tie
 ## Release gate and phone check
 
 After the owner approves deployment, merge the reviewed change and deploy that exact commit using the existing project and production variables. Retain the private Blob store and existing Yahoo snapshot. Do not upload private league JSON to GitHub. Then verify hosted GET/POST analysis routes, sign in on the phone, open Briefing, press Refresh Analysis, confirm all three source/calculation times, change a strategy, recalculate, and reload. Verify a signed-out request cannot read analysis or research. Live deployment verification remains pending until that approved release exists.
+
+
+Live release verification found compressed private reads returning weak ETags while conditional writes require strong object revisions. Private reads now request Accept-Encoding: identity. A mocked real SDK regression test and a synthetic live private-store probe verified successful conditional updates and rejection of stale writes. The probe was removed and temporary storage credentials were deleted. This preserves concurrency protection rather than disabling it.
