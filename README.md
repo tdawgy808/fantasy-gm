@@ -50,3 +50,6 @@ Git ignore rules do not remove previously tracked files. Recheck the Git index o
 ## Disclaimer
 
 Fantasy GM is an independent personal project and is not affiliated with or endorsed by Yahoo or the NFL. API use is subject to Yahoo's applicable terms and approval. Recommendations do not guarantee fantasy outcomes.
+
+
+Analysis engine: [architecture, workflows, source requirements and verification](docs/analysis-engine.md). Daily Briefing adds owner-only saved calculations, persistent strategies and separate research imports. No new provider account is needed for manual mode. Deployment requires owner approval.

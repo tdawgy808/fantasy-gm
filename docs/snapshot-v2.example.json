@@ -1,0 +1,331 @@
+{
+  "schema_version": 2,
+  "captured_at": "2026-11-06T19:00:00Z",
+  "timezone": "America/Los_Angeles",
+  "method": "Synthetic test fixture",
+  "league": {
+    "id": 121612,
+    "season": 2026,
+    "name": "Example"
+  },
+  "team": {
+    "id": 5,
+    "name": "Example owner",
+    "rank": 7,
+    "faab_remaining": 100
+  },
+  "week": 9,
+  "sources": {
+    "roster": "https://football.fantasysports.yahoo.com/f1/121612/5"
+  },
+  "roster": [
+    {
+      "name": "Steady",
+      "slot": "RB",
+      "position": "RB",
+      "projection": 10
+    },
+    {
+      "name": "Volatile",
+      "slot": "BN",
+      "position": "RB",
+      "projection": 12
+    }
+  ],
+  "available_players": [
+    [
+      "Candidate",
+      "RB",
+      "FA",
+      13
+    ]
+  ],
+  "rules": {
+    "roster_positions": [
+      "RB",
+      "BN"
+    ],
+    "playoffs": {
+      "teams": 6,
+      "weeks": [
+        15,
+        16,
+        17
+      ]
+    },
+    "trade_deadline": "2026-11-28"
+  },
+  "analysis_inputs": {
+    "scoring": {
+      "id": "test",
+      "complete": true,
+      "rules": [
+        {
+          "stat": "yards",
+          "points": 0.1
+        }
+      ]
+    },
+    "roster_slots": [
+      "RB"
+    ],
+    "opponent_team_id": 2,
+    "players": [
+      {
+        "id": "steady",
+        "name": "Steady",
+        "position": "RB",
+        "eligible": [
+          "RB"
+        ],
+        "projection": 10,
+        "history": [
+          {
+            "week": 1,
+            "season": 2026,
+            "played_at": "2026-10-01T12:00:00Z",
+            "points": 9,
+            "scoring_id": "test"
+          },
+          {
+            "week": 2,
+            "season": 2026,
+            "played_at": "2026-10-02T12:00:00Z",
+            "points": 10,
+            "scoring_id": "test"
+          },
+          {
+            "week": 3,
+            "season": 2026,
+            "played_at": "2026-10-03T12:00:00Z",
+            "points": 11,
+            "scoring_id": "test"
+          },
+          {
+            "week": 4,
+            "season": 2026,
+            "played_at": "2026-10-04T12:00:00Z",
+            "points": 10,
+            "scoring_id": "test"
+          },
+          {
+            "week": 5,
+            "season": 2026,
+            "played_at": "2026-10-05T12:00:00Z",
+            "points": 9,
+            "scoring_id": "test"
+          },
+          {
+            "week": 6,
+            "season": 2026,
+            "played_at": "2026-10-06T12:00:00Z",
+            "points": 10,
+            "scoring_id": "test"
+          },
+          {
+            "week": 7,
+            "season": 2026,
+            "played_at": "2026-10-07T12:00:00Z",
+            "points": 11,
+            "scoring_id": "test"
+          },
+          {
+            "week": 8,
+            "season": 2026,
+            "played_at": "2026-10-08T12:00:00Z",
+            "points": 10,
+            "scoring_id": "test"
+          }
+        ]
+      },
+      {
+        "id": "volatile",
+        "name": "Volatile",
+        "position": "RB",
+        "eligible": [
+          "RB"
+        ],
+        "projection": 12,
+        "history": [
+          {
+            "week": 1,
+            "season": 2026,
+            "played_at": "2026-10-01T12:00:00Z",
+            "points": 0,
+            "scoring_id": "test"
+          },
+          {
+            "week": 2,
+            "season": 2026,
+            "played_at": "2026-10-02T12:00:00Z",
+            "points": 0,
+            "scoring_id": "test"
+          },
+          {
+            "week": 3,
+            "season": 2026,
+            "played_at": "2026-10-03T12:00:00Z",
+            "points": 0,
+            "scoring_id": "test"
+          },
+          {
+            "week": 4,
+            "season": 2026,
+            "played_at": "2026-10-04T12:00:00Z",
+            "points": 0,
+            "scoring_id": "test"
+          },
+          {
+            "week": 5,
+            "season": 2026,
+            "played_at": "2026-10-05T12:00:00Z",
+            "points": 24,
+            "scoring_id": "test"
+          },
+          {
+            "week": 6,
+            "season": 2026,
+            "played_at": "2026-10-06T12:00:00Z",
+            "points": 24,
+            "scoring_id": "test"
+          },
+          {
+            "week": 7,
+            "season": 2026,
+            "played_at": "2026-10-07T12:00:00Z",
+            "points": 24,
+            "scoring_id": "test"
+          },
+          {
+            "week": 8,
+            "season": 2026,
+            "played_at": "2026-10-08T12:00:00Z",
+            "points": 24,
+            "scoring_id": "test"
+          }
+        ]
+      },
+      {
+        "id": "other",
+        "name": "Opponent",
+        "position": "RB",
+        "eligible": [
+          "RB"
+        ],
+        "projection": 11,
+        "history": [
+          {
+            "week": 1,
+            "season": 2026,
+            "played_at": "2026-10-01T12:00:00Z",
+            "points": 10,
+            "scoring_id": "test"
+          },
+          {
+            "week": 2,
+            "season": 2026,
+            "played_at": "2026-10-02T12:00:00Z",
+            "points": 11,
+            "scoring_id": "test"
+          },
+          {
+            "week": 3,
+            "season": 2026,
+            "played_at": "2026-10-03T12:00:00Z",
+            "points": 12,
+            "scoring_id": "test"
+          },
+          {
+            "week": 4,
+            "season": 2026,
+            "played_at": "2026-10-04T12:00:00Z",
+            "points": 11,
+            "scoring_id": "test"
+          },
+          {
+            "week": 5,
+            "season": 2026,
+            "played_at": "2026-10-05T12:00:00Z",
+            "points": 10,
+            "scoring_id": "test"
+          },
+          {
+            "week": 6,
+            "season": 2026,
+            "played_at": "2026-10-06T12:00:00Z",
+            "points": 11,
+            "scoring_id": "test"
+          },
+          {
+            "week": 7,
+            "season": 2026,
+            "played_at": "2026-10-07T12:00:00Z",
+            "points": 12,
+            "scoring_id": "test"
+          },
+          {
+            "week": 8,
+            "season": 2026,
+            "played_at": "2026-10-08T12:00:00Z",
+            "points": 11,
+            "scoring_id": "test"
+          }
+        ]
+      },
+      {
+        "id": "candidate",
+        "name": "Candidate",
+        "position": "RB",
+        "eligible": [
+          "RB"
+        ],
+        "projection": 13,
+        "opportunity_trend": 0.1
+      },
+      {
+        "id": "stash",
+        "name": "Stash",
+        "position": "RB",
+        "eligible": [
+          "RB"
+        ],
+        "projection": 7,
+        "opportunity_trend": 1,
+        "ros_projection": 20,
+        "playoff_projection": 22
+      }
+    ],
+    "teams": [
+      {
+        "id": 5,
+        "name": "Example owner",
+        "roster": [
+          {
+            "player_id": "steady",
+            "slot": "RB"
+          },
+          {
+            "player_id": "volatile",
+            "slot": "BN"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Example other",
+        "roster": [
+          {
+            "player_id": "other",
+            "slot": "RB"
+          }
+        ]
+      }
+    ],
+    "available_ids": [
+      "candidate",
+      "stash"
+    ],
+    "waiver_min_bid": 0,
+    "waiver_increment": 1
+  }
+}

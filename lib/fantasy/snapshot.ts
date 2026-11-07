@@ -1,10 +1,12 @@
+import { validateInputs, type AnalysisInputs } from "./inputs.ts";
 export type RosterPlayer = {
   slot: string; name: string; team?: string; position?: string;
   opponent?: string; status?: string; bye?: number;
   projection?: number | null; actual?: number; game_status?: string;
 };
 export type Snapshot = {
-  schema_version: 1; captured_at: string; timezone: string; method: string;
+  schema_version: 1 | 2; captured_at: string; timezone: string; method: string;
+  analysis_inputs?: AnalysisInputs;
   league: { id: number; season: number; name: string };
   team: { id: number; name: string; record?: string; rank?: number; faab_remaining?: number };
   week: number; sources: Record<string, string>; roster: RosterPlayer[];
@@ -28,7 +30,7 @@ function integer(value: unknown): value is number { return number(value) && Numb
 function fail(): never { throw new Error("Invalid snapshot. Check the schema, identity, dates, roster, and numeric fields."); }
 
 // Inspect every field, including extensions, before allowing private data into the viewer.
-function checkPrivateFields(value: unknown, depth = 0): void {
+export function checkPrivateFields(value: unknown, depth = 0): void {
   if (depth > 30) throw new Error("Snapshot nesting is too deep.");
   if (string(value) && /-----BEGIN .*PRIVATE KEY-----|\bBearer\s+\S+|\bBasic\s+[A-Za-z0-9+/=]+/i.test(value)) {
     throw new Error("Remove credentials from the snapshot.");
@@ -48,7 +50,7 @@ export function parseSnapshot(text: string): Snapshot {
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw new Error("Choose a valid JSON snapshot file."); }
   checkPrivateFields(value);
-  if (!object(value) || value.schema_version !== 1 || !string(value.captured_at) ||
+  if (!object(value) || ![1,2].includes(value.schema_version as number) || !string(value.captured_at) ||
       !/^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value.captured_at) ||
       !Number.isFinite(Date.parse(value.captured_at)) || Date.parse(value.captured_at) > Date.now() + 300000 ||
       !string(value.timezone) || !string(value.method) || !integer(value.week) || value.week > 18 ||
@@ -108,6 +110,18 @@ export function parseSnapshot(text: string): Snapshot {
     if (value[key] !== undefined && (!Array.isArray(value[key]) || !value[key].every(string))) fail();
   }
   if (value.available_player_scope !== undefined && !string(value.available_player_scope)) fail();
+  if (value.schema_version === 2 && value.analysis_inputs === undefined) fail();
+  if (value.analysis_inputs !== undefined) {
+    validateInputs(value.analysis_inputs);
+    const owner=value.analysis_inputs.teams?.find(t=>t.id===(value.team as {id:number}).id);
+    if(owner) {
+      if(owner.roster.length!==value.roster.length) fail();
+      for(const row of owner.roster) {
+        const p=value.analysis_inputs.players.find(p=>p.id===row.player_id);
+        if(!(value.roster as RosterPlayer[]).some(r=>r.name.toLowerCase()===p?.name.toLowerCase()&&r.slot===row.slot))fail();
+      }
+    }
+  }
   return value as Snapshot;
 }
 
