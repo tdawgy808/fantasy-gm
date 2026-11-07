@@ -7,7 +7,7 @@ import { optimize } from "./optimizer.ts";
 import { waiverScout } from "./waivers.ts";
 import { tradeScout } from "./trades.ts";
 import { playoffOutlook } from "./playoffs.ts";
-export const ENGINE_VERSION="1.0.0";
+export const ENGINE_VERSION="1.1.0";
 export const fingerprint=(v:unknown)=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
 type PreviousAnalysis={yahoo_at:string;news_at:string|null;settings:Settings;lineup:{assignments:{player:{id:string}}[]};waivers:{id:string}[]};
 export function calculate(snapshot:Snapshot,research:Research|null,settings:Settings,previous:PreviousAnalysis|null=null,now=Date.now()) {

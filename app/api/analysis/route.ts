@@ -22,7 +22,7 @@ export async function POST(request:NextRequest){
   } catch(error) {
     // Provider errors can contain identifiers/URLs. Never return raw storage/OAuth errors.
     const message=error instanceof Error?error.message:"";
-    const safe=/^(Import and save|Research snapshot is older|Choose a supported|Each finding needs|Research source is not|Invalid (research|modeled)|Yahoo data changed|Analysis inputs changed|Saved analysis exceeds)/.test(message);
+    const safe=/^(Import and save|Import research with|Research snapshot is older|Choose a supported|Each finding needs|Research source is not|Invalid (research|modeled)|Yahoo data changed|Analysis inputs changed|Saved analysis exceeds)/.test(message);
     return reply({error:safe?message:"Analysis could not complete or save. Previous recommendations and success timestamp were retained."},safe?400:503);
   }
 }

@@ -3,6 +3,7 @@ import { canPlay } from "./players.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type { Settings } from "./strategies.ts";
 import { simulateLineups } from "./simulation.ts";
+import { lineupDecisions } from "./lineup-decisions.ts";
 export type Assignment={slot:string;player:Evaluation};
 type Candidate={score:number;assignments:Assignment[]};
 export function rosterSlots(snapshot:Snapshot):string[] {
@@ -40,7 +41,8 @@ export function optimize(snapshot:Snapshot,players:Evaluation[],settings:Setting
   const current=owner.filter(p=>p.slot&&!["BN","IR"].includes(p.slot));
   const currentSim=simulation&&opponentComplete?simulateLineups([current],opponent,snapshot.analysis_inputs?.correlations):null;
   const sum=(ps:Evaluation[])=>ps.some(p=>p.locked?p.actual===undefined:p.mean===null)?null:ps.reduce((s,p)=>s+(p.locked?p.actual!:p.mean!),0);
-  return {assignments:best?.assignments??[],projection:best?sum(best.assignments.map(a=>a.player)):null,current_projection:sum(current),current_probability:currentSim?.probabilities[0]??null,win_probability:simulation?.probabilities[index]??null,simulation_trials:simulation?.trials??0,method:simulation?`Empirical bootstrap, ${simulation.trials} trials; ${simulation.correlated?"sourced correlations":"independence assumption"}; uncalibrated model estimate`:`Projection fallback; ${settings.lineup} uses ${settings.lineup==="Safe"?"empirical 20th percentile where available":settings.lineup==="Aggressive"?"empirical 80th percentile where available":"expected points without unsupported win odds"}`,
-    changes:best?.assignments.filter(a=>a.player.slot!==a.slot).map(a=>({player:a.player.name,slot:a.slot,from:a.player.slot,reason:`${a.player.projection_source}; ${settings.lineup} strategy. Verify actual Yahoo eligibility and locks.`}))??[],
+  const decisions=lineupDecisions(current,owner,best?.assignments??[]);
+  return {decisions,opponent_name:opponentTeam?.name??null,opponent_lineup:opponent.map(p=>({id:p.id,name:p.name,position:p.position,projection:p.locked?p.actual??null:p.mean,status:p.status??null,risks:p.factors})),opponent_projection:opponentComplete?sum(opponent):null,assignments:best?.assignments??[],projection:best?sum(best.assignments.map(a=>a.player)):null,current_projection:sum(current),current_probability:currentSim?.probabilities[0]??null,win_probability:simulation?.probabilities[index]??null,simulation_trials:simulation?.trials??0,method:simulation?`Empirical bootstrap, ${simulation.trials} trials; ${simulation.correlated?"sourced correlations":"independence assumption"}; uncalibrated model estimate`:`Projection fallback; ${settings.lineup} uses ${settings.lineup==="Safe"?"empirical 20th percentile where available":settings.lineup==="Aggressive"?"empirical 80th percentile where available":"expected points without unsupported win odds"}`,
+    changes:decisions.additions,
     limitations:[...(!best?["A full legal lineup cannot be filled from available, unlocked, projected players. No partial lineup is presented as optimal."]:[]),...(!simulation?["Matchup simulation requires a complete opponent lineup and at least eight compatible historical games for every unlocked player, plus actual points for locked players."]:[]),"Search retains up to 24 candidates per slot state; estimated win probability is compared within this bounded candidate set, not every possible lineup.","Safe/Aggressive settings target floor/ceiling; matchup-aware maximizes estimated win probability when the simulation is supported."]};
 }

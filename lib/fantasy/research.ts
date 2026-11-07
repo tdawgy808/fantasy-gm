@@ -3,21 +3,22 @@ import { sourceUrl, timestamp } from "./inputs.ts";
 
 export type Finding = {
   id: string; player_id?: string; player: string; source: string; source_url: string;
-  published_at: string; retrieved_at: string; claim: string;
+  published_at: string | null; published_date?: string; retrieved_at: string; claim: string;
   category: "injury" | "availability" | "workload" | "usage" | "depth_chart" | "performance" | "matchup" | "expert" | "news";
   quality: "high" | "medium" | "low"; confirmation: "confirmed" | "reported" | "speculative";
   effect?: { week: number; season: number; projection_multiplier?: number; unavailable?: boolean; rationale: string };
 };
 export type Research = { schema_version: 1; collected_at: string; mode: "manual" | "licensed_feed"; findings: Finding[] };
 const text = (s: unknown, max=2000): s is string => typeof s === "string" && s.trim().length > 0 && s.length <= max;
-const trusted = ["nfl.com","espn.com","fantasypros.com","rotowire.com","pro-football-reference.com","pff.com","sports.yahoo.com","nbcsports.com","cbssports.com","apnews.com"];
+const trusted = ["nfl.com","espn.com","fantasypros.com","rotowire.com","pro-football-reference.com","pff.com","sports.yahoo.com","nbcsports.com","cbssports.com","apnews.com","philadelphiaeagles.com","therams.com","seahawks.com","giants.com","detroitlions.com","raiders.com","49ers.com"];
 export function parseResearch(raw: string): Research {
   if (new TextEncoder().encode(raw).length > MAX_SNAPSHOT_BYTES) throw new Error("Research must be 1 MB or smaller.");
   const r = JSON.parse(raw); checkPrivateFields(r);
   if (!r || r.schema_version !== 1 || !timestamp(r.collected_at) || !["manual","licensed_feed"].includes(r.mode) || !Array.isArray(r.findings) || r.findings.length > 500) throw new Error("Invalid research snapshot.");
   const ids = new Set(); const dedup = new Map<string,Finding>();
   for (const f of r.findings) {
-    if (!f || !text(f.id,100) || ids.has(f.id) || !text(f.player,150) || f.player_id !== undefined && !text(f.player_id,150) || !text(f.source,150) || !text(f.claim) || !sourceUrl(f.source_url) || !timestamp(f.published_at) || !timestamp(f.retrieved_at) || Date.parse(f.published_at) > Date.parse(f.retrieved_at)+300000 || Date.parse(f.retrieved_at) > Date.parse(r.collected_at)+300000 || !["high","medium","low"].includes(f.quality) || !["confirmed","reported","speculative"].includes(f.confirmation) || !["injury","availability","workload","usage","depth_chart","performance","matchup","expert","news"].includes(f.category)) throw new Error("Each finding needs an identity, factual claim, safe source URL, real timestamps and evidence labels.");
+    if(f.published_date!==undefined&&(!/^\d{4}-\d{2}-\d{2}$/.test(f.published_date)||!Number.isFinite(Date.parse(f.published_date))||Date.parse(f.published_date)>Date.parse(r.collected_at)+86400000))throw new Error("Invalid research publication date.");
+    if (!f || !text(f.id,100) || ids.has(f.id) || !text(f.player,150) || f.player_id !== undefined && !text(f.player_id,150) || !text(f.source,150) || !text(f.claim) || !sourceUrl(f.source_url) || (f.published_at !== null && !timestamp(f.published_at)) || !timestamp(f.retrieved_at) || f.published_at !== null && Date.parse(f.published_at) > Date.parse(f.retrieved_at)+300000 || Date.parse(f.retrieved_at) > Date.parse(r.collected_at)+300000 || !["high","medium","low"].includes(f.quality) || !["confirmed","reported","speculative"].includes(f.confirmation) || !["injury","availability","workload","usage","depth_chart","performance","matchup","expert","news"].includes(f.category)) throw new Error("Each finding needs an identity, factual claim, safe source URL, real timestamps and evidence labels.");
     const host = new URL(f.source_url).hostname;
     if (!trusted.some(d=>host===d||host.endsWith(`.${d}`))) throw new Error("Research source is not in the reviewed provider allowlist.");
     if (f.effect !== undefined) {

@@ -1,7 +1,7 @@
 import { MAX_SNAPSHOT_BYTES, parseSnapshot, type Snapshot } from "./snapshot.ts";
 
 export class SnapshotConflict extends Error {}
-export async function boundedText(stream: ReadableStream<Uint8Array> | null): Promise<string> {
+export async function boundedText(stream: ReadableStream<Uint8Array> | null, maxBytes=MAX_SNAPSHOT_BYTES): Promise<string> {
   if (!stream) throw new Error("Missing JSON body.");
   const reader = stream.getReader();
   const chunks: Uint8Array[] = []; let size = 0;
@@ -9,7 +9,7 @@ export async function boundedText(stream: ReadableStream<Uint8Array> | null): Pr
     while (true) {
       const { done, value } = await reader.read(); if (done) break;
       size += value.byteLength;
-      if (size > MAX_SNAPSHOT_BYTES) { await reader.cancel(); throw new Error("Snapshot must be 1 MB or smaller."); }
+      if (size > maxBytes) { await reader.cancel(); throw new Error(maxBytes===MAX_SNAPSHOT_BYTES?"Snapshot must be 1 MB or smaller.":`JSON exceeds the ${maxBytes} byte limit.`); }
       chunks.push(value);
     }
   } finally { reader.releaseLock(); }

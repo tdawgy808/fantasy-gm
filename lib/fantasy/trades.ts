@@ -11,6 +11,9 @@ export function tradeScout(snapshot:Snapshot,players:Evaluation[],settings:Setti
   if(!deadline&&!dateOnly)return {opportunities:[],limitation:"Trade deadline unavailable; import it before generating offers."};
   const teams=inputs?.teams??[];const me=teams.find(t=>t.id===snapshot.team.id);const slots=rosterSlots(snapshot);
   if(!me||teams.length<2)return {opportunities:[],limitation:"Other league rosters and explicit player identities are required for mutually beneficial trade analysis."};
+  const collection=snapshot.collection_coverage as {complete_team_ids?:number[]}|undefined;
+  if(collection?.complete_team_ids&&collection.complete_team_ids.length!==10)return {opportunities:[],limitation:"Complete rosters for all ten teams are required before suggesting trades."};
+  if(typeof snapshot.rules?.trade_reject_days==="number"&&snapshot.rules.trade_reject_days>0&&!players.some(p=>p.ros_projection!==undefined))return {opportunities:[],limitation:`All imported rosters can be inspected, but the ${snapshot.rules.trade_reject_days}-day league review period can outlast the current week. No actionable trade offers: rest-of-season or future-week values are required to assess mutual benefit after review. Current-week projections are insufficient.`};
   const playoffTeams=inputs?.playoff?.teams;
   const remaining=Math.max(0,(inputs?.playoff?.start_week??15)-snapshot.week);
   // Rank inside the cut is not a clinch. Require a strict wins lead over enough rivals' maximum wins.
@@ -27,11 +30,13 @@ export function tradeScout(snapshot:Snapshot,players:Evaluation[],settings:Setti
   for(const team of teams.filter(t=>t.id!==me.id)){
     const other=roster(team);const beforeOther=value(other,"Win Now");if(beforeOther===null)continue;
     for(const give of mine.filter(p=>!p.locked&&!p.unavailable&&p.slot!=="IR"))for(const receive of other.filter(p=>!p.locked&&!p.unavailable&&p.slot!=="IR")){
+      // Weekly kicker/defense streaming value cannot justify trading a skill player without season evidence.
+      if((["K","DEF"].includes(give.position)!==["K","DEF"].includes(receive.position))&&(give.ros_projection===undefined||receive.ros_projection===undefined))continue;
       const after=value([...mine.filter(p=>p.id!==give.id),{...receive,slot:"BN"}],strategy);
       const afterOther=value([...other.filter(p=>p.id!==receive.id),{...give,slot:"BN"}],"Win Now");
       if(after===null||afterOther===null||after-before<.5||afterOther-beforeOther<.5)continue;
-      offers.push({partner:team.name,send:give.name,receive:receive.name,my_gain:after-before,their_gain:afterOther-beforeOther,reason:`${strategy}: estimated legal starting-lineup improvement for both teams.`,opening_offer:`${give.name} for ${receive.name}`,confidence:"low",risks:["One-for-one screen only; manager preferences and acceptance likelihood unknown.","Player values are imported estimates; bench depth and injury coverage require manual review.","League review delay, next-week game locks and schedules may change value."],evidence:[...give.evidence,...receive.evidence]});
+      offers.push({partner:team.name,send:give.name,receive:receive.name,my_gain:after-before,their_gain:afterOther-beforeOther,reason:`${strategy}: estimated legal starting-lineup improvement for both teams.`,opening_offer:`${give.name} for ${receive.name}`,confidence:"low",risks:[...give.factors,...receive.factors,...give.conflicts,...receive.conflicts,...(give.ros_projection===undefined||receive.ros_projection===undefined?["ROS value unavailable: weekly projection screen only, not a season-value assessment."]:[]),"One-for-one screen only; manager preferences and acceptance likelihood unknown.","Player values are imported estimates; bench depth and injury coverage require manual review.","League review delay, next-week game locks and schedules may change value."],evidence:[...give.evidence,...receive.evidence]});
     }
   }
-  return {opportunities:offers.sort((a,b)=>b.my_gain+b.their_gain-a.my_gain-a.their_gain).slice(0,5),limitation:"Bounded one-for-one screen. No offer is sent. No acceptance odds are claimed; lack of matches is a valid result."};
+  return {opportunities:offers.sort((a,b)=>b.my_gain+b.their_gain-a.my_gain-a.their_gain).slice(0,5),limitation:"Shows up to five supported matches; fewer may pass. Bounded one-for-one screen. No offer is sent. No acceptance odds are claimed; lack of matches is a valid result."};
 }

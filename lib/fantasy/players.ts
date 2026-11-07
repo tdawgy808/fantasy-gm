@@ -46,19 +46,20 @@ export function evaluatePlayers(snapshot: Snapshot,research: Research|null,now:n
     if(/\bQ\b|questionable/i.test(p.status??""))factors.push("Questionable: confirm status and prepare an unlocked eligible contingency.");
     if(locked)factors.push("Game started or actual points recorded; hold the assignment fixed.");
     const findings=researchForPlayer(research,p.id,p.name);
-    const applicable=findings.filter(f=>f.effect?.week===snapshot.week&&f.effect?.season===snapshot.league.season&&now-Date.parse(f.published_at)<=48*3600000&&f.quality!=="low"&&f.confirmation!=="speculative");
+    const applicable=findings.filter(f=>f.effect?.week===snapshot.week&&f.effect?.season===snapshot.league.season&&f.published_at!==null&&now-Date.parse(f.published_at)<=48*3600000&&f.quality!=="low"&&f.confirmation!=="speculative");
     const official=applicable.filter(f=>f.confirmation==="confirmed"&&/^(?:.*\.)?nfl\.com$/.test(new URL(f.source_url).hostname));
     const preferred=official.length?official:applicable;
     if(official.length&&applicable.some(f=>!official.includes(f)&&JSON.stringify(f.effect)!==JSON.stringify(official[0].effect)))conflicts.push("An official confirmed NFL report is prioritized over other reported modeled effects; review all sources.");
     const signatures=new Set(preferred.map(f=>JSON.stringify([f.effect?.unavailable,f.effect?.projection_multiplier])));
     if(signatures.size>1)conflicts.push("Conflicting research effects; no numeric adjustment applied. Review the sources.");
     else if(preferred.length) {
-      const best=[...preferred].sort((a,b)=>Number(b.confirmation==="confirmed")-Number(a.confirmation==="confirmed")||Date.parse(b.published_at)-Date.parse(a.published_at))[0];
+      const best=[...preferred].sort((a,b)=>Number(b.confirmation==="confirmed")-Number(a.confirmation==="confirmed")||Date.parse(b.published_at!)-Date.parse(a.published_at!))[0];
       if(best.effect?.unavailable===true&&best.confirmation==="confirmed")unavailable=true;
       if(mean!==null&&best.effect?.projection_multiplier!==undefined) {mean*=best.effect.projection_multiplier;variance_scale=best.effect.projection_multiplier;projection_source+=" + explicitly imported research estimate (mean and spread scaled)";}
       factors.push(`Research model: ${best.effect?.rationale} (${best.confirmation}; ${best.source}).`);
     }
-    for(const f of findings)if(now-Date.parse(f.published_at)>48*3600000)factors.push(`Stale research excluded from numeric effects: ${f.source}.`);
+    for(const f of findings)if(f.published_at===null||now-Date.parse(f.published_at)>48*3600000)factors.push(`${f.published_at===null?"Undated":"Stale"} research excluded from numeric effects: ${f.source}.`);
+    for(const f of findings)factors.push(`${f.category}: ${f.claim} (${f.source}; ${f.confirmation}; published ${f.published_at??"unknown"}).`);
     if(p.usage_note)factors.push(`Observed usage: ${p.usage_note}`);
     if(p.matchup_note)factors.push(`Imported defensive matchup: ${p.matchup_note}`);
     if(p.environment_note)factors.push(`Imported environment: ${p.environment_note}`);

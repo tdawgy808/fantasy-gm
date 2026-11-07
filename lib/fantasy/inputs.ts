@@ -14,10 +14,10 @@ export type AnalysisInputs = {
   players: PlayerInput[]; teams?: TeamInput[]; roster_slots?: string[];
   opponent_team_id?: number; available_ids?: string[];
   correlations?: { a: string; b: string; rho: number; source_url: string; sample_size: number }[];
-  schedule?: { week: number; home: number; away: number; home_projection: number; away_projection: number }[];
+  schedule?: { week: number; home: number; away: number; home_projection?: number; away_projection?: number }[];
   playoff?: { teams: number; start_week: number; tie_breaker: "points_for" | "unsupported" };
   trade_deadline_at?: string; waiver_min_bid?: number; waiver_increment?: number;
-  transactions?: { at: string; team_id: number; kind: string; player_id: string; bid?: number }[];
+  transactions?: { at: string | null; displayed_at?: string; team_id: number; kind: string; player_id: string; bid?: number }[];
   records_through_week?: number;
   team_histories?: { team_id:number; scoring_id:string; through_week:number; points:number[] }[];
 };
@@ -84,14 +84,14 @@ export function validateInputs(v: unknown): asserts v is AnalysisInputs {
   if (v.schedule !== undefined) {
     if (!arr(v.schedule,300)) fail(); const games = new Set<string>();
     for (const g of v.schedule) {
-      if (!obj(g) || !positive(g.week) || g.week > 18 || !teamIds.has(g.home as number) || !teamIds.has(g.away as number) || g.home === g.away || !num(g.home_projection) || !num(g.away_projection)) fail();
+      if (!obj(g) || !positive(g.week) || g.week > 18 || !teamIds.has(g.home as number) || !teamIds.has(g.away as number) || g.home === g.away || g.home_projection !== undefined && !num(g.home_projection) || g.away_projection !== undefined && !num(g.away_projection)) fail();
       for (const id of [g.home,g.away]) { const key=`${g.week}-${id}`; if(games.has(key)) fail(); games.add(key); }
     }
   }
   if (v.playoff !== undefined && (!obj(v.playoff) || !positive(v.playoff.teams) || !positive(v.playoff.start_week) || v.playoff.start_week > 18 || !["points_for","unsupported"].includes(v.playoff.tie_breaker as string))) fail();
   if (v.trade_deadline_at !== undefined && (!str(v.trade_deadline_at) || !/T.*(?:Z|[+-]\d\d:\d\d)$/.test(v.trade_deadline_at) || !Number.isFinite(Date.parse(v.trade_deadline_at)))) fail();
   for (const key of ["waiver_min_bid","waiver_increment"]) if (v[key] !== undefined && (!num(v[key]) || (v[key] as number) < (key === "waiver_increment" ? 0.01 : 0))) fail();
-  if (v.transactions !== undefined && (!arr(v.transactions,500) || !v.transactions.every(t=>obj(t)&&timestamp(t.at)&&teamIds.has(t.team_id as number)&&str(t.kind)&&ids.has(t.player_id as string)&&(t.bid===undefined||num(t.bid)&&t.bid>=0)))) fail();
+  if (v.transactions !== undefined && (!arr(v.transactions,500) || !v.transactions.every(t=>obj(t)&&(timestamp(t.at)||t.at===null&&str(t.displayed_at))&&teamIds.has(t.team_id as number)&&str(t.kind)&&ids.has(t.player_id as string)&&(t.bid===undefined||num(t.bid)&&t.bid>=0)))) fail();
   if(v.records_through_week!==undefined&&(!num(v.records_through_week)||!Number.isInteger(v.records_through_week)||v.records_through_week<0||v.records_through_week>18))fail();
   if(v.team_histories!==undefined){if(!arr(v.team_histories,30)||new Set(v.team_histories.map(h=>obj(h)?h.team_id:null)).size!==v.team_histories.length)fail();for(const h of v.team_histories)if(!obj(h)||!teamIds.has(h.team_id as number)||!str(h.scoring_id)||!positive(h.through_week)||!arr(h.points,50)||!h.points.every(num))fail();}
 }

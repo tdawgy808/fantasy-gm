@@ -53,3 +53,5 @@ Fantasy GM is an independent personal project and is not affiliated with or endo
 
 
 Analysis engine: [architecture, workflows, source requirements and verification](docs/analysis-engine.md). Daily Briefing adds owner-only saved calculations, persistent strategies and separate research imports. No new provider account is needed for manual mode. Deployment requires owner approval.
+
+Comprehensive browser refresh, research, private import and coverage: [Refresh Fantasy GM Data](docs/comprehensive-refresh.md).
