@@ -6,12 +6,13 @@ Fantasy GM is a personal, noncommercial Yahoo Fantasy Football assistant intende
 
 This project contains a local Next.js application with Yahoo OAuth and a manual, read-only snapshot dashboard. Fantasy Sports API access remains disabled by default pending Yahoo approval. Manual collection reads Yahoo website pages; it does not use the Fantasy Sports API.
 
-## Planned features
+## MVP features
 
 - **Read-only league analytics:** Review authorized league settings, rosters, standings, matchups, and available player statistics.
 - **Lineup recommendations:** Suggest starters and bench options based on league scoring, roster eligibility, and available data.
 - **Waiver analysis:** Evaluate available players and potential pickups against the user's roster needs.
-- **Trade analysis:** Compare proposed trades and their potential effect on roster balance and team performance.
+- **Owner sign-in:** GitHub OAuth restricted to one numeric owner ID, with server-side page and API protection.
+- **Injury information:** Imported status tags and optional dated Yahoo reports; no live news feed.
 
 All recommendations are advisory. The user makes and submits any lineup changes, waiver claims, or trades directly in Yahoo Fantasy Football. The application will not automatically change rosters or execute transactions.
 
@@ -30,11 +31,15 @@ The public repository contains source code and documentation only. Authenticatio
 
 ## Local development
 
-Use Node.js 22.18+ or a newer supported Node LTS. Run `npm ci`, then `npm run dev` and open `/dashboard` to import a locally gathered snapshot JSON file. No credentials are needed for manual review. Files stay in the browser tab and are cleared on reload.
+Use Node.js 22.18+ or a newer supported Node LTS. Run `npm ci`, copy `.env.example` to `.env.local`, and configure owner sign-in as described in [deployment setup](docs/deployment.md). Then run `npm run dev`, sign in at `/login`, and open `/dashboard` to import a locally gathered JSON snapshot. Yahoo credentials are not needed for manual review. Files stay in the browser tab and are cleared on reload.
 
 For OAuth development, copy `.env.example` to `.env.local`, fill in your own Yahoo configuration, and keep the API flag false until approval. OAuth cookies are secure and require HTTPS: run `npm run dev -- --experimental-https` and use the exact HTTPS callback registered with Yahoo. Locally generated certificates remain ignored. The original app's credentials and certificates are deliberately not copied into this source migration.
 
-Sessions are held only in server memory and disappear when the process restarts. Token refresh is not yet implemented. This is a local personal-development app, not a production authentication service. The dashboard does not claim a verified OAuth connection just because it was opened.
+The preserved Yahoo sessions are held only in server memory and disappear when the process restarts. Yahoo token refresh is not yet implemented; these legacy Yahoo routes are disabled on Vercel until durable encrypted storage is implemented. App owner sign-in is separate and uses signed, expiring cookies without a database. No real account setup, deployment or Yahoo transaction has been performed for the MVP.
+
+## Vercel readiness
+
+The manual MVP needs no hosted database. See [deployment and environment variables](docs/deployment.md) for owner account connections, server-side route protection, storage limits, and future API requirements. Automatic Git deployments are explicitly disabled; obtain owner approval before importing or deploying the Vercel project.
 
 ## Manual refresh and checks
 

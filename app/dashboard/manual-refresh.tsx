@@ -1,73 +1,79 @@
 "use client";
-
 import { useState } from "react";
 import { MAX_SNAPSHOT_BYTES, manualProvider, snapshotAgeHours, type Snapshot } from "@/lib/fantasy/snapshot";
+import { available, completed, recommendations, standings, unavailable } from "@/lib/fantasy/analysis";
+
+const tabs = ["Overview", "Roster", "Standings", "Available", "Intel"] as const;
+type Tab = typeof tabs[number];
+function points(value: number | null | undefined) { return typeof value === "number" ? value.toFixed(2) : "—"; }
+function Tag({ text, tone = "neutral" }: { text: string; tone?: string }) { return <span className={`tag ${tone}`}>{text}</span>; }
 
 export default function ManualRefresh() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [tab, setTab] = useState<Tab>("Overview");
   const [error, setError] = useState("");
   const [changes, setChanges] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [position, setPosition] = useState("ALL");
 
   async function importFile(file: File | undefined) {
-    if (!file) return;
-    setError(""); setLoading(true);
+    if (!file) return; setError(""); setLoading(true);
     try {
       if (file.size > MAX_SNAPSHOT_BYTES) throw new Error("Snapshot must be 1 MB or smaller.");
       const next = await manualProvider.load(await file.text());
-      if (snapshot && (snapshot.league.id !== next.league.id || snapshot.league.season !== next.league.season || snapshot.team.id !== next.team.id)) {
-        throw new Error("This file belongs to a different league, season, or team. Reload the page to start a separate review.");
-      }
-      if (snapshot && Date.parse(next.captured_at) < Date.parse(snapshot.captured_at)) throw new Error("This snapshot is older than the one already loaded.");
+      if (snapshot && (snapshot.league.id !== next.league.id || snapshot.league.season !== next.league.season || snapshot.team.id !== next.team.id)) throw new Error("Different league, season or team. Clear the current view before opening another team.");
+      if (snapshot && Date.parse(next.captured_at) < Date.parse(snapshot.captured_at)) throw new Error("This snapshot is older than the current one.");
       const notes: string[] = [];
       if (snapshot) {
-        for (const player of next.roster) {
-          const prior = snapshot.roster.find(p => p.name === player.name);
-          if (!prior) notes.push(`Added: ${player.name}`);
+        for (const p of next.roster) {
+          const prior = snapshot.roster.find(old => old.name === p.name);
+          if (!prior) notes.push(`Added: ${p.name}`);
           else {
-            if (prior.slot !== player.slot) notes.push(`${player.name}: ${prior.slot} → ${player.slot}`);
-            if (prior.status !== player.status) notes.push(`${player.name}: status changed to ${player.status ?? "no tag"}`);
+            if (prior.slot !== p.slot) notes.push(`${p.name}: ${prior.slot} → ${p.slot}`);
+            if (prior.status !== p.status) notes.push(`${p.name}: ${p.status || "no tag recorded"}`);
           }
         }
-        for (const player of snapshot.roster) if (!next.roster.some(p => p.name === player.name)) notes.push(`Removed: ${player.name}`);
+        for (const p of snapshot.roster) if (!next.roster.some(nextPlayer => nextPlayer.name === p.name)) notes.push(`Removed: ${p.name}`);
         if (snapshot.team.faab_remaining !== next.team.faab_remaining) notes.push(`FAAB: ${snapshot.team.faab_remaining ?? "unknown"} → ${next.team.faab_remaining ?? "unknown"}`);
+        if (!notes.length) notes.push("No roster, status or FAAB changes detected.");
       }
       setChanges(notes); setSnapshot(next);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to read the snapshot."); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to read snapshot."); }
     finally { setLoading(false); }
   }
+  function exportFile() {
+    if (!snapshot) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a"); link.href = url; link.download = `fantasy-gm-${snapshot.captured_at.slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(url);
+  }
+  const advice = snapshot ? recommendations(snapshot) : [];
+  const injuries = snapshot?.roster.filter(p => /\b(Q|IR|NA|O|OUT|D)\b|questionable|inactive|doubtful/i.test(p.status || "") || snapshot.injury_notes?.some(note => note.player === p.name)) || [];
+  const pool = snapshot ? available(snapshot).filter(p => (position === "ALL" || p.position === position) && p.name.toLowerCase().includes(query.toLowerCase())).sort((a,b) => b.projection - a.projection) : [];
+  const matchup = snapshot?.matchup;
+  const stale = snapshot ? snapshotAgeHours(snapshot) >= 24 : false;
 
-  return <section className="space-y-6">
-    <div className="rounded-xl bg-slate-900 p-6 space-y-3">
-      <h2 className="text-2xl font-semibold">Manual Yahoo refresh</h2>
-      <p>Gather the latest Yahoo pages in your signed-in browser, then open the dated snapshot file here.</p>
-      <p className="text-slate-400">Files are read in this browser tab only. Nothing is uploaded, saved to browser storage, or sent to Yahoo. Reloading clears the view.</p>
-      <label className="block font-semibold">Open snapshot JSON
-        <input type="file" accept=".json,application/json" disabled={loading} className="block mt-2 max-w-full" onChange={event => {
-          void importFile(event.target.files?.[0]); event.target.value = "";
-        }} />
-      </label>
-      {loading && <p role="status">Reading snapshot…</p>}
-      {error && <p role="alert" className="text-red-300">{error} The previous snapshot, if any, is unchanged.</p>}
-    </div>
-    {!snapshot && <p>No snapshot loaded. Yahoo OAuth is preserved separately; API access remains disabled by default.</p>}
-    {snapshot && <>
-      <div className="rounded-xl bg-slate-900 p-6 space-y-2">
-        <h2 className="text-2xl font-semibold">{snapshot.team.name} · Week {snapshot.week}</h2>
-        <p>{snapshot.league.name} · {snapshot.league.season} · League {snapshot.league.id}</p>
-        <p>Captured {new Date(snapshot.captured_at).toLocaleString("en-US", { timeZone: snapshot.timezone })} ({snapshot.timezone})</p>
-        <p>{snapshot.method}</p>
-        {snapshotAgeHours(snapshot) >= 24 && <p className="text-amber-300">This snapshot is over 24 hours old. Recheck availability before making decisions.</p>}
-        <p>Record: {snapshot.team.record ?? "unknown"} · Rank: {snapshot.team.rank ?? "unknown"} · FAAB: {snapshot.team.faab_remaining === undefined ? "unknown" : `$${snapshot.team.faab_remaining}`}</p>
-        {snapshot.matchup && <p>vs {snapshot.matchup.opponent}: {snapshot.matchup.score}–{snapshot.matchup.opponent_score}. Live projection {snapshot.matchup.live_projection}–{snapshot.matchup.opponent_live_projection}.</p>}
-      </div>
-      {!!changes.length && <div><h3 className="text-xl font-semibold">Changes from previously loaded snapshot</h3><ul className="list-disc pl-6">{changes.map((change, i) => <li key={i}>{change}</li>)}</ul></div>}
-      <div className="overflow-x-auto"><table className="w-full text-left"><caption className="text-xl text-left mb-3">Roster</caption><thead><tr>{["Slot", "Player", "Status", "Bye", "Projected", "Actual"].map(label => <th className="p-2" key={label}>{label}</th>)}</tr></thead>
-        <tbody>{snapshot.roster.map((player, i) => <tr className="border-t border-slate-700" key={i}><td className="p-2">{player.slot}</td><td className="p-2">{player.name}</td><td className="p-2">{player.status ?? "No tag recorded"}</td><td className="p-2">{player.bye ?? "—"}</td><td className="p-2">{player.projection ?? "—"}</td><td className="p-2">{player.actual ?? "—"}</td></tr>)}</tbody></table></div>
-      <p>{snapshot.available_player_scope ?? "Available-player coverage was not recorded."}</p>
-      {snapshot.quality_notes && <ul className="list-disc pl-6 text-amber-200">{snapshot.quality_notes.map((note, i) => <li key={i}>{note}</li>)}</ul>}
-      {["standings", "available_players", "scoring", "rules"].map(key => snapshot[key] !== undefined && <details className="rounded-xl bg-slate-900 p-4" key={key}><summary>{key.replaceAll("_", " ")}</summary><pre className="overflow-auto text-sm mt-3">{JSON.stringify({ columns: snapshot[`${key === "available_players" ? "available" : key}_columns`], data: snapshot[key] }, null, 2)}</pre></details>)}
-      <details><summary>Source pages</summary><ul>{Object.entries(snapshot.sources).map(([name, url]) => <li key={name}><a className="underline" href={url} target="_blank" rel="noreferrer">{name}</a></li>)}</ul></details>
-    </>}
-  </section>;
+  return <div className="app-shell">
+    <aside className="sidebar"><a className="brand" href="/dashboard"><span className="brand-mark">FG</span><span>Fantasy GM<small>THE FRONT OFFICE</small></span></a><p className="sidebar-caption">WORKSPACE</p>
+      <nav aria-label="Desktop dashboard sections">{tabs.map((name, i) => <button key={name} className={tab === name ? "nav-active" : ""} onClick={() => setTab(name)}><span className="nav-icon">{["◈", "▤", "▥", "⊕", "◎"][i]}</span>{name}{name === "Intel" && injuries.length > 0 && <span className="nav-count">{injuries.length}</span>}</button>)}</nav>
+      <div className="sidebar-bottom"><Tag text="READ ONLY" tone="mint" /><p>Every move is your call.<br />No transactions are submitted.</p><form action="/api/login/logout" method="post"><button className="text-button">Sign out ↗</button></form></div>
+    </aside>
+    <div className="main-shell"><header className="topbar"><div className="mobile-brand"><span className="brand-mark">FG</span><strong>Fantasy GM</strong></div><span className="desktop-only muted">Your private front office</span><div className="topbar-right"><span className="status-dot" />Owner access<form action="/api/login/logout" method="post" className="mobile-only"><button className="text-button">Sign out</button></form></div></header>
+      <main className="workspace"><div className="page-heading"><div><p className="eyebrow">FANTASY FOOTBALL / {snapshot?.league.season ?? "MANUAL WORKSPACE"}</p><h1>{tab === "Overview" ? "The game plan." : tab === "Available" ? "Find your next edge." : `${tab}.`}</h1><p className="muted">{snapshot ? `${snapshot.team.name} · ${snapshot.league.name} · Week ${snapshot.week}` : "Bring your league into focus with a dated Yahoo snapshot."}</p></div><label className="primary-button import-button">{loading ? "Reading…" : "↑ Import snapshot"}<input aria-label="Import snapshot JSON" type="file" accept=".json,application/json" disabled={loading} onChange={event => { void importFile(event.target.files?.[0]); event.target.value = ""; }} /></label></div>
+        {error && <div role="alert" className="notice danger">{error} Your previous snapshot is unchanged.</div>}
+        {!snapshot ? <><section className="empty-state"><div className="empty-orbit">◈</div><p className="eyebrow">YOUR LEAGUE, ALL IN ONE PLACE</p><h2>Start with a fresh snapshot.</h2><p>Roster, matchup, standings, available players, and your waiver budget.<br />Import once. Review every angle.</p><label className="primary-button import-button">Choose JSON file<input aria-label="Choose snapshot JSON" type="file" accept=".json,application/json" onChange={e => { void importFile(e.target.files?.[0]); e.target.value = ""; }} /></label><p className="small muted">Up to 1 MB · Read locally in this tab · Never uploaded</p></section><section className="card"><h2>How the manual refresh works</h2><div className="steps"><div><span>01</span><h3>Read Yahoo</h3><p>Gather the latest pages in your authorized session. Record the week, scoring, status tags and coverage.</p></div><div><span>02</span><h3>Import JSON</h3><p>Open the structured snapshot here. Credentials and session fields are rejected.</p></div><div><span>03</span><h3>Make the call</h3><p>Review projection comparisons and injury flags. All Yahoo actions remain yours to approve.</p></div></div></section></> : <>
+          <div className="snapshot-bar"><span><span className="status-dot" />{stale ? "Snapshot needs a refresh" : "Manual snapshot"}</span><time dateTime={snapshot.captured_at}>{new Date(snapshot.captured_at).toLocaleString("en-US", { timeZone: snapshot.timezone })} · {snapshot.timezone}</time><button className="text-button" onClick={exportFile}>Export JSON ↓</button><button className="text-button" onClick={() => {setSnapshot(null);setChanges([]);setError("");}}>Clear view</button></div>
+          {stale && <div className="notice">Captured over 24 hours ago. Availability and projections may have changed; recheck before making a decision.</div>}
+          <div className="metric-grid"><section className="metric"><p>RECORD</p><strong>{snapshot.team.record ?? "—"}</strong><span>Season to date</span></section><section className="metric"><p>LEAGUE RANK</p><strong>{snapshot.team.rank ? `#${snapshot.team.rank}` : "—"}</strong><span>Standings at capture</span></section><section className="metric"><p>FAAB REMAINING</p><strong className="mint-text">{snapshot.team.faab_remaining === undefined ? "—" : `$${snapshot.team.faab_remaining}`}</strong><span>No bids submitted</span></section><section className="metric"><p>AVAILABILITY FLAGS</p><strong className={injuries.length ? "amber-text" : ""}>{injuries.length}</strong><span>Including bench and IR</span></section></div>
+          <div role="tablist" aria-label="Dashboard sections" className="section-tabs">{tabs.map(name => <button role="tab" aria-selected={tab === name} aria-controls="dashboard-panel" key={name} onClick={() => setTab(name)}>{name}</button>)}</div>
+          <div role="tabpanel" id="dashboard-panel" aria-label={tab}>
+          {tab === "Overview" && <div className="overview-grid"><section className="card matchup-card"><div className="card-heading"><h2>Weekly matchup</h2><Tag text={`WEEK ${snapshot.week}`} /></div>{matchup ? <><div className="matchup-teams"><div><span className="team-avatar">GM</span><h3>{snapshot.team.name}</h3><strong>{points(matchup.score)}</strong><p>Your score</p></div><span className="versus">VS</span><div><span className="team-avatar opponent">OP</span><h3>{matchup.opponent}</h3><strong>{points(matchup.opponent_score)}</strong><p>Opponent score</p></div></div><div className="projection-strip"><span>Live projection</span><strong>{points(matchup.live_projection)} <span className="muted">—</span> {points(matchup.opponent_live_projection)}</strong></div>{matchup.win_probability !== undefined && <><div className="chance-bar"><span style={{width:`${matchup.win_probability * 100}%`}} /></div><p className="small muted">Yahoo win estimate <strong className="mint-text">{Math.round(matchup.win_probability * 100)}%</strong> · At capture, not a guarantee</p></>}</> : <p className="muted">Matchup was not included in this snapshot.</p>}</section><section className="card"><div className="card-heading"><h2>Priority watch</h2><Tag text="INJURIES" tone="amber" /></div>{injuries.length ? injuries.slice(0,4).map(p => <div className="watch-row" key={p.name}><span className="player-avatar">{p.name.split(" ").map(s => s[0]).slice(0,2).join("")}</span><div><strong>{p.name}</strong><p>{p.slot} · {p.team || "Team not recorded"}</p></div><Tag text={p.status || "Check"} tone="amber" /></div>) : <p className="muted">No injury tags recorded. Absence of a tag is not confirmation of health.</p>}<button className="text-button mint-text" onClick={()=>setTab("Intel")}>Review injury information →</button></section><section className="card full-span"><div className="card-heading"><h2>Your decision board</h2><Tag text="ADVISORY ONLY" tone="mint" /></div><div className="advice-grid">{advice.map((item,i)=><article className="advice" key={i}><span className={`advice-label ${item.level}`}>{item.level}</span><h3>{item.title}</h3><p>{item.detail}</p></article>)}</div><p className="small muted">Based on imported projections, eligibility and tags. Completed games are held fixed. Verify game locks and current news in Yahoo.</p></section></div>}
+          {tab === "Roster" && <section className="card"><div className="card-heading"><h2>Your roster</h2><Tag text={`${snapshot.roster.length} PLAYERS`} /></div><div className="roster-list"><div className="roster-head"><span>POSITION / PLAYER</span><span>STATUS</span><span>BYE</span><span>PROJ.</span><span>ACTUAL</span></div>{snapshot.roster.map((p,i)=><div className={`roster-row ${["BN","IR"].includes(p.slot)?"bench-row":""}`} key={i}><div className="roster-player"><span className="slot">{p.slot}</span><div><strong>{p.name}</strong><p>{p.team || p.position || ""}{p.opponent ? ` · ${p.opponent}` : ""}{completed(p) ? " · Game started / complete" : ""}</p></div></div><span className="roster-status"><Tag text={p.status || "No tag"} tone={unavailable(p,snapshot.week)?"amber":"neutral"}/></span><span className="roster-bye">{p.bye ?? "—"}</span><strong>{points(p.projection)}</strong><strong className="mint-text">{points(p.actual)}</strong></div>)}</div><p className="small muted">No tag means no status was recorded. This screen cannot edit your Yahoo lineup.</p></section>}
+          {tab === "Standings" && <section className="card"><div className="card-heading"><h2>The league table</h2><Tag text="AT CAPTURE" /></div>{standings(snapshot).length ? <div className="table-scroll"><table><thead><tr>{["Rank","Team","W–L–T","Points for","Points against","FAAB"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{standings(snapshot).map(row=><tr key={row.rank} className={row.team===snapshot.team.name?"your-team":""}><td>#{row.rank}</td><td><strong>{row.team}</strong>{row.team===snapshot.team.name&&<span className="you-label">YOU</span>}</td><td>{row.record}</td><td>{points(row.pf)}</td><td>{points(row.pa)}</td><td>${row.faab}</td></tr>)}</tbody></table></div> : <p className="muted">Standings were not included in this snapshot.</p>}</section>}
+          {tab === "Available" && <section className="card"><div className="card-heading"><div><h2>Available players</h2><p className="small muted">Ranked by imported weekly projection</p></div><Tag text="NO CLAIMS OR BIDS" tone="mint" /></div><div className="filters"><label>Search player<input type="search" placeholder="Find a player…" value={query} onChange={e=>setQuery(e.target.value)}/></label><label>Position<select value={position} onChange={e=>setPosition(e.target.value)}>{["ALL","QB","RB","WR","TE","K","DEF"].map(p=><option value={p} key={p}>{p==="ALL"?"All positions":p}</option>)}</select></label></div><div className="notice small">{snapshot.available_player_scope || "Coverage not recorded; this may be a partial list."}</div>{pool.length ? <div className="available-grid">{pool.map((p,i)=><article className="available-card" key={i}><div className="card-heading"><span className="slot">{p.position}</span><Tag text={p.status} tone={p.status==="FA"?"mint":"amber"}/></div><h3>{p.name}</h3><div className="available-points"><strong>{points(p.projection)}</strong><span>PROJECTED</span></div><p className="small muted">{p.status==="FA"?"Listed as a free agent at capture.":"Waiver or other status. Check the displayed date in Yahoo."}</p></article>)}</div> : <p className="muted">No imported players match these filters.</p>}<p className="small muted">Availability is not a pickup recommendation. FAAB bid values require a separate roster and market review.</p></section>}
+          {tab === "Intel" && <div className="intel-grid"><section className="card"><h2>Injury information</h2><p className="small muted">Imported status tags, not a live injury feed.</p>{injuries.map(p=><div className="injury-card" key={p.name}><div className="card-heading"><h3>{p.name}</h3><Tag text={p.status || "Check"} tone="amber"/></div><p>{p.slot} · {p.team || "Team not recorded"} · {points(p.projection)} projected</p>{snapshot.injury_notes?.filter(n=>n.player===p.name).map((note,i)=><div key={i}><p>{note.summary}</p><p className="small muted">Updated {new Date(note.updated_at).toLocaleString()}{note.source_url && <> · <a href={note.source_url} target="_blank" rel="noreferrer">Yahoo source ↗</a></>}</p></div>)}{!snapshot.injury_notes?.some(n=>n.player===p.name)&&<p className="small muted">No sourced injury report included. Read Yahoo player notes before deciding.</p>}</div>)}{!injuries.length&&<p>No injury tags recorded.</p>}</section><section className="card"><h2>Refresh notes</h2><p className="small muted">{snapshot.method}</p><ul className="notes">{(snapshot.quality_notes || ["No collection notes included."]).map((note,i)=><li key={i}>{note}</li>)}</ul>{changes.length>0&&<><h3>Changes since previous import</h3><ul className="notes">{changes.map((note,i)=><li key={i}>{note}</li>)}</ul></>}<h3>Source pages</h3><div className="source-links">{Object.entries(snapshot.sources).map(([name,url])=><a href={url} target="_blank" rel="noreferrer" key={name}>{name.replaceAll("_"," ")} ↗</a>)}</div></section><section className="card full-span"><h2>League rules & scoring</h2><p className="small muted">Recommendations use imported Yahoo projections. Custom scoring is preserved for review.</p><div className="rules-grid">{["scoring","rules"].map(key=><details key={key}><summary>{key === "scoring"?"Scoring values":"Roster, waivers & playoffs"}</summary><pre>{JSON.stringify(snapshot[key] ?? "Not provided",null,2)}</pre></details>)}</div></section></div>}
+          </div></>}
+        <footer className="workspace-footer"><span>FANTASY GM <span className="mint-text">/</span> YOUR CALL, ALWAYS.</span><span>Manual data · No Yahoo transactions · Tab-only storage</span></footer>
+      </main><nav className="mobile-nav" aria-label="Mobile dashboard sections">{tabs.map((name,i)=><button key={name} className={tab===name?"active":""} onClick={()=>setTab(name)}><span>{["◈","▤","▥","⊕","◎"][i]}</span>{name}</button>)}</nav>
+    </div></div>;
 }

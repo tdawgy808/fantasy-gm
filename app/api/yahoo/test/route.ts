@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { yahooSessions } from "../../../../lib/yahoo-session";
+import { requireOwner } from "@/lib/auth/owner";
 
 export async function GET(request: NextRequest) {
+  await requireOwner();
   if (process.env.YAHOO_FANTASY_API_ENABLED !== "true") {
     return NextResponse.json(
       { connected: false, error: "Fantasy API access is disabled pending Yahoo approval. Use manual snapshots." },

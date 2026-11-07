@@ -14,6 +14,7 @@ export type Snapshot = {
   rules?: Record<string, unknown>; available_players?: unknown[];
   available_columns?: string[]; standings_columns?: string[];
   available_player_scope?: string; quality_notes?: string[];
+  injury_notes?: { player: string; summary: string; updated_at: string; source_url?: string }[];
   [key: string]: unknown;
 };
 
@@ -86,6 +87,23 @@ export function parseSnapshot(text: string): Snapshot {
   }
   for (const key of ["scoring", "rules"]) if (value[key] !== undefined && !object(value[key])) fail();
   for (const key of ["standings", "available_players"]) if (value[key] !== undefined && !Array.isArray(value[key])) fail();
+  if (Array.isArray(value.standings)) for (const row of value.standings) {
+    if (!Array.isArray(row) || row.length !== 9 || !integer(row[0]) || !string(row[1]) || !string(row[2]) || !number(row[3]) || !number(row[4]) || !string(row[5]) || !number(row[6]) || row[6] < 0 || !integer(row[7]) || !number(row[8])) fail();
+  }
+  if (Array.isArray(value.available_players)) for (const row of value.available_players) {
+    if (!Array.isArray(row) || row.length !== 4 || !string(row[0]) || !string(row[1]) || !string(row[2]) || !number(row[3])) fail();
+  }
+  if (value.injury_notes !== undefined) {
+    if (!Array.isArray(value.injury_notes)) fail();
+    for (const note of value.injury_notes) {
+      if (!object(note) || !string(note.player) || !string(note.summary) || !string(note.updated_at) || !Number.isFinite(Date.parse(note.updated_at))) fail();
+      if (note.source_url !== undefined) {
+        if (!string(note.source_url)) fail();
+        const url = new URL(note.source_url);
+        if (url.protocol !== "https:" || !["sports.yahoo.com", "football.fantasysports.yahoo.com"].includes(url.hostname) || url.username || url.password || url.search || url.hash) fail();
+      }
+    }
+  }
   for (const key of ["available_columns", "standings_columns", "quality_notes"]) {
     if (value[key] !== undefined && (!Array.isArray(value[key]) || !value[key].every(string))) fail();
   }

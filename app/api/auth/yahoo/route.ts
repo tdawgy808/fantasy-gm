@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
+import { requireOwner } from "@/lib/auth/owner";
 
 export async function GET() {
+  await requireOwner();
+  if (process.env.VERCEL) return NextResponse.json({ error: "Yahoo OAuth uses local memory. Durable encrypted storage is required before enabling it on Vercel." }, { status: 503 });
   const clientId = process.env.YAHOO_CLIENT_ID;
   const redirectUri = process.env.YAHOO_REDIRECT_URI;
 

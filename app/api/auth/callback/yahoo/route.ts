@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { requireOwner } from "@/lib/auth/owner";
 
 export async function GET(request: NextRequest) {
+  await requireOwner();
+  if (process.env.VERCEL) return NextResponse.json({ error: "Hosted Yahoo OAuth requires durable encrypted session storage." }, { status: 503 });
   const url = new URL(request.url);
 
   const error = url.searchParams.get("error");

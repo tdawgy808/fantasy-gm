@@ -6,7 +6,7 @@ The existing application was copied into a separate workspace. The original appl
 
 ## OAuth preservation
 
-The login route, callback route, and server-side in-memory session module are byte-identical to the original. The callback checks OAuth state, exchanges the code on the server, stores tokens in memory, and sets a secure HTTP-only session cookie. No real credentials are embedded in the source. The existing Fantasy API test route is retained but disabled unless explicitly enabled after approval. Raw Yahoo error bodies are no longer echoed to the browser.
+The initial migration preserved the login route, callback route, and server-side in-memory session module byte-for-byte. The subsequent private MVP adds owner authorization guards and Vercel storage-readiness checks around those routes, preserving the underlying Yahoo flow. The callback checks OAuth state, exchanges the code on the server, stores tokens in memory, and sets a secure HTTP-only session cookie. No real credentials are embedded in the source. The existing Fantasy API test route is retained but disabled unless explicitly enabled after approval. Raw Yahoo error bodies are no longer echoed to the browser.
 
 Existing limitations remain: token refresh is unimplemented; sessions disappear on restart; expired sessions are not automatically cleaned up; callback state is cleared on success but not consumed before every failed exchange. This migration does not claim production-ready authentication or verified live Yahoo login. No new OAuth login, token exchange, Fantasy API call, or Yahoo transaction was performed during migration.
 

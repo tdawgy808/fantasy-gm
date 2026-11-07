@@ -4,7 +4,7 @@ import { resolve, relative } from 'node:path';
 
 // Explicit allowlist: publishing must use this manifest, never a recursive folder upload.
 const roots = ['app', 'lib', 'public', 'scripts', 'tests', 'docs'];
-const files = ['.env.example', '.gitignore', 'AGENTS.md', 'README.md', 'package.json', 'package-lock.json', 'tsconfig.json', 'next.config.ts', 'eslint.config.mjs'];
+const files = ['.env.example', '.gitignore', 'AGENTS.md', 'README.md', 'package.json', 'package-lock.json', 'tsconfig.json', 'next.config.ts', 'eslint.config.mjs', 'proxy.ts', 'vercel.json'];
 async function walk(path) {
   const stat = await lstat(path);
   if (stat.isSymbolicLink()) throw new Error(`Symlink is not publishable: ${path}`);
