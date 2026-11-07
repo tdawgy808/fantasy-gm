@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { parseSnapshot, checkPrivateFields, type Snapshot } from "./snapshot.ts";
 import { parseResearch, type Research } from "./research.ts";
 import { timestamp,sourceUrl } from "./inputs.ts";
-import { coverageReport, type CollectionEvidence, type CoverageReport } from "./coverage.ts";
+import { coverageReport, coverageStatus, type CollectionEvidence, type CoverageReport } from "./coverage.ts";
 import { initialState, type AnalysisStore } from "./analysis-service.ts";
 export type RefreshAttempt={id:string;attempted_at:string;status:"Saved"|"Failed";message:string;report?:CoverageReport};
 export type RefreshBundle={schema_version:1;snapshot:Snapshot;research:Research|null;collection:CollectionEvidence};
@@ -41,7 +41,7 @@ async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   if(retain)report.limitations=[...report.limitations,"Yahoo collection incomplete: previous valid Yahoo snapshot retained with its original capture date; counts above describe the attempted collection."];
   if(!bundle.research&&state.research)report.limitations=[...report.limitations,"Previous research retained with its original collection date."];
   report.import_status="Saved";report.findings_imported=research?.findings.length??0;
-  report.status=!retain&&report.trade_ready&&report.schedule_ready&&report.scoring&&report.rules&&report.standings&&report.limitations.length===0&&!!research?"Complete":"Partial";
+  report.status=coverageStatus(report);
   const attempt:RefreshAttempt={id,attempted_at:at,status:"Saved",message:retain?"Partial collection; older Yahoo source retained.":"Validated source bundle saved; deployed read verification pending.",report};
   const next={...state,research,bundled_snapshot:snapshot,coverage:report,refresh_attempts:[...(state.refresh_attempts??[]),attempt].slice(-50)};
   await store.write(next,record?.etag);await store.archive?.(attempt);return next;
@@ -60,6 +60,7 @@ export async function verifyRefresh(store:AnalysisStore,id:string,now=Date.now()
   const record=await store.read();if(!record?.value.coverage||record.value.coverage.id!==id)throw new Error("Refresh changed before verification.");
   const source=await store.yahoo();if(source?.snapshot.captured_at!==record.value.coverage.yahoo_at)throw new Error("Saved Yahoo source does not match refresh receipt.");
   const coverage={...record.value.coverage,deployed_read_verified_at:deployed?new Date(now).toISOString():null};
+  coverage.status=coverageStatus(coverage);
   const attempts=record.value.refresh_attempts?.map(a=>a.id===id?{...a,report:coverage,message:deployed?"Saved bundle read back by authenticated deployment.":"Saved bundle read back locally; production verification pending."}:a);
   await store.write({...record.value,coverage,refresh_attempts:attempts},record.etag);const attempt=attempts?.find(a=>a.id===id);if(attempt)await store.archive?.(attempt);return coverage;
 }

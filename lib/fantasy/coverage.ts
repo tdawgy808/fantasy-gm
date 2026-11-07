@@ -11,6 +11,9 @@ export type CollectionEvidence={
   limitations:string[];
 };
 export type CoverageReport=ReturnType<typeof coverageReport>;
+export function coverageStatus(c:CoverageReport):CoverageStatus{
+  return c.import_status==="Saved"&&!!c.deployed_read_verified_at&&!c.retained&&c.trade_ready&&c.schedule_ready&&c.standings&&c.scoring&&c.rules&&c.limitations.length===0&&c.findings_imported>0&&c.missing_publication===0&&c.players_researched===c.research_targets&&c.sources.every(s=>s.status==="accessed")&&["QB","RB","WR","TE","K","DEF"].every(pos=>c.pool.some(p=>p.position===pos&&p.exhausted))?"Complete":"Partial";
+}
 export function coverageReport(id:string,at:string,snapshot:Snapshot,research:Research|null,e:CollectionEvidence){
   const input=snapshot.analysis_inputs,teams=input?.teams??[],players=input?.players??[];
   const complete=e.rosters.filter(r=>r.status==="Complete"&&teams.some(t=>t.id===r.team_id&&t.roster.length===r.player_count));
