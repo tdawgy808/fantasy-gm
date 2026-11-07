@@ -1,3 +1,7 @@
+# Comprehensive workflow
+
+Use [Refresh Fantasy GM Data](comprehensive-refresh.md) for new refreshes. “Refresh Fantasy” is its alias. The instructions below document the legacy single-snapshot import.
+
 # Manual Yahoo refresh
 
 This workflow reads Yahoo website pages using an already authorized browser session. It does not call the Fantasy Sports API. No transactions are part of a refresh.

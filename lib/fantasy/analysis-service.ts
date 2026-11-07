@@ -2,10 +2,13 @@ import type { Snapshot } from "./snapshot.ts";
 import { calculate, fingerprint, ENGINE_VERSION, type AnalysisResult } from "./engine.ts";
 import { defaultSettings, parseSettings, type Settings } from "./strategies.ts";
 import { parseResearch, type Research } from "./research.ts";
-export type AnalysisState={schema_version:1;settings:Settings;research:Research|null;analysis:AnalysisResult|null};
+import type { CoverageReport } from "./coverage.ts";
+import type { RefreshAttempt } from "./refresh.ts";
+export type AnalysisState={schema_version:1;bundled_snapshot?:Snapshot;coverage?:CoverageReport;refresh_attempts?:RefreshAttempt[];settings:Settings;research:Research|null;analysis:AnalysisResult|null};
 export const initialState=():AnalysisState=>({schema_version:1,settings:{...defaultSettings},research:null,analysis:null});
 export type StateRecord={value:AnalysisState;etag:string};
 export interface AnalysisStore {
+  archive?(attempt:RefreshAttempt):Promise<void>;
   read():Promise<StateRecord|null>;
   write(value:AnalysisState,etag?:string):Promise<void>;
   yahoo():Promise<{snapshot:Snapshot;etag:string}|null>;
@@ -30,6 +33,7 @@ export async function updateSettings(store:AnalysisStore,value:unknown) {
 }
 export async function importResearch(store:AnalysisStore,text:string) {
   const research=parseResearch(text);const record=await store.read();const state=record?.value??initialState();
+  if(state.bundled_snapshot)throw new Error("Import research with the comprehensive refresh bundle to keep coverage consistent.");
   if(state.research&&Date.parse(research.collected_at)<Date.parse(state.research.collected_at))throw new Error("Research snapshot is older than the stored research.");
   const next={...state,research};await store.write(next,record?.etag);return next;
 }
