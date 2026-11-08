@@ -24,7 +24,7 @@ export async function runAnalysis(store:AnalysisStore,now=Date.now(),compute=cal
   // Reject an analysis calculated against a source replaced during the calculation.
   const latest=await store.yahoo();if(latest?.etag!==source.etag)throw new Error("Yahoo data changed during calculation. Refresh analysis again.");
   const baseline=captureSummaryBaseline(analysis,state.research,source.snapshot.week);
-  const previous=state.summary_baseline??(state.analysis?captureSummaryBaseline(state.analysis,null,null):null);
+  const previous=state.summary_baseline??(state.analysis?captureSummaryBaseline(state.analysis,null,state.analysis.yahoo_at===source.snapshot.captured_at?source.snapshot.week:null):null);
   const next={...state,analysis,summary_baseline:baseline,summary_changes:compareSummaryBaselines(previous,baseline,state.research,now)};
   // ETag compare-and-swap rejects concurrent settings/research/results changes.
   await store.write(next,record?.etag);
