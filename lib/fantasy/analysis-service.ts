@@ -4,7 +4,8 @@ import { defaultSettings, parseSettings, type Settings } from "./strategies.ts";
 import { parseResearch, type Research } from "./research.ts";
 import type { CoverageReport } from "./coverage.ts";
 import type { RefreshAttempt } from "./refresh.ts";
-export type AnalysisState={schema_version:1;bundled_snapshot?:Snapshot;coverage?:CoverageReport;refresh_attempts?:RefreshAttempt[];settings:Settings;research:Research|null;analysis:AnalysisResult|null};
+import { captureSummaryBaseline, compareSummaryBaselines, type SummaryBaseline, type SummaryChange } from "./summary.ts";
+export type AnalysisState={schema_version:1;bundled_snapshot?:Snapshot;coverage?:CoverageReport;refresh_attempts?:RefreshAttempt[];summary_baseline?:SummaryBaseline;summary_changes?:SummaryChange[];settings:Settings;research:Research|null;analysis:AnalysisResult|null};
 export const initialState=():AnalysisState=>({schema_version:1,settings:{...defaultSettings},research:null,analysis:null});
 export type StateRecord={value:AnalysisState;etag:string};
 export interface AnalysisStore {
@@ -22,7 +23,9 @@ export async function runAnalysis(store:AnalysisStore,now=Date.now(),compute=cal
   const analysis=compute(source.snapshot,state.research,state.settings,state.analysis,now);
   // Reject an analysis calculated against a source replaced during the calculation.
   const latest=await store.yahoo();if(latest?.etag!==source.etag)throw new Error("Yahoo data changed during calculation. Refresh analysis again.");
-  const next={...state,analysis};
+  const baseline=captureSummaryBaseline(analysis,state.research,source.snapshot.week);
+  const previous=state.summary_baseline??(state.analysis?captureSummaryBaseline(state.analysis,null,null):null);
+  const next={...state,analysis,summary_baseline:baseline,summary_changes:compareSummaryBaselines(previous,baseline,state.research,now)};
   // ETag compare-and-swap rejects concurrent settings/research/results changes.
   await store.write(next,record?.etag);
   return next;
