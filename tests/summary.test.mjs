@@ -47,3 +47,7 @@ test('credible current research changes are tracked but old reports are not anno
  assert.ok(compareSummaryBaselines(a,captureSummaryBaseline(r,fresh,9),fresh,now).some(c=>c.kind==='research'));
  fresh.findings[0].published_at='2026-10-01T00:00:00Z';assert.deepEqual(compareSummaryBaselines(a,captureSummaryBaseline(r,fresh,9),fresh,now),[]);
 });
+test('upgrading existing results from the same Yahoo snapshot does not announce an existing bye',async()=>{
+ const snapshot=fixture();snapshot.analysis_inputs.players[1].bye=9;snapshot.roster[1].bye=9;const analysis=calculate(snapshot,research(),defaultSettings,null,now);let state={...initialState(),research:research(),analysis};const store={read:async()=>({value:state,etag:'v'}),yahoo:async()=>({snapshot,etag:'y'}),write:async next=>{state=next;}};
+ await runAnalysis(store,now+1000);assert.deepEqual(state.summary_changes,[]);assert.equal(state.summary_baseline.owner.find(p=>p.id==='volatile').status,'Bye');
+});
