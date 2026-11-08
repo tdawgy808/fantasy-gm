@@ -33,3 +33,7 @@ Roster denominator is the ten expected team IDs. Schedule denominator is five ga
 **Refresh Analysis** remains separate. It reads saved Yahoo/research/settings, recalculates, and advances the analysis timestamp only after a successful conditional save. It never browses Yahoo or news sites. Undated research remains qualitative. Current and remaining opponents display even when future projections and playoff odds are unavailable. Trades use opposing rosters; weekly projection screens are low confidence when ROS values are absent. Skill-player-for-K/DEF suggestions require season-value evidence.
 
 Before declaring completion, verify counts and player identities in the hosted owner session, confirm all three source/analysis dates, confirm evidence reaches player intelligence, and check on a narrow phone viewport. Confirm signed-out requests cannot read data. Code deployment remains a separate owner approval.
+
+## Daily targeted mode
+
+The default `Refresh Fantasy` workflow can now use a current-week comprehensive baseline plus explicit daily deltas, rather than repeating the full checklist. Use weekly comprehensive collection for a new week, an expired baseline, changed rules, or uncertain ownership. See [personalized available players and refresh modes](personalized-available-and-refreshes.md) for the daily contract, collection priorities, original-date retention and mandatory critical injury scans. Data Coverage imports both formats and offers a saved-data collection plan. Refresh Analysis never collects sources.

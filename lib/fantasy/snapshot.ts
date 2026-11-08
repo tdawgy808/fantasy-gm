@@ -1,4 +1,5 @@
 import { validateInputs, type AnalysisInputs } from "./inputs.ts";
+import type { DataFreshness } from "./freshness.ts";
 export type RosterPlayer = {
   slot: string; name: string; team?: string; position?: string;
   opponent?: string; status?: string; bye?: number;
@@ -7,6 +8,9 @@ export type RosterPlayer = {
 export type Snapshot = {
   schema_version: 1 | 2; captured_at: string; timezone: string; method: string;
   analysis_inputs?: AnalysisInputs;
+  data_freshness?:DataFreshness;
+  research_checked_at?:Record<string,string>;
+  refresh_changes?:{newly_available:string[];recently_added:string[];changed_players:string[]};
   league: { id: number; season: number; name: string };
   team: { id: number; name: string; record?: string; rank?: number; faab_remaining?: number };
   week: number; sources: Record<string, string>; roster: RosterPlayer[];
@@ -58,6 +62,9 @@ export function parseSnapshot(text: string): Snapshot {
       !object(value.team) || !integer(value.team.id) || !string(value.team.name) ||
       !object(value.sources) || !Object.keys(value.sources).length || !Array.isArray(value.roster) || !value.roster.length || value.roster.length > 100) fail();
   try { new Intl.DateTimeFormat("en-US", { timeZone: value.timezone }); } catch { fail(); }
+  if(value.refresh_changes!==undefined){const c=value.refresh_changes;if(!object(c)||![c.newly_available,c.recently_added,c.changed_players].every(a=>Array.isArray(a)&&a.length<=800&&a.every(string)))fail();}
+  if(value.research_checked_at!==undefined&&(!object(value.research_checked_at)||Object.values(value.research_checked_at).some(v=>!string(v)||!Number.isFinite(Date.parse(v))||Date.parse(v)>Date.now()+300000)))fail();
+  if(value.data_freshness!==undefined){const f=value.data_freshness;const date=(v:unknown)=>string(v)&&Number.isFinite(Date.parse(v))&&Date.parse(v)<=Date.now()+300000;if(!object(f)||!["weekly","daily"].includes(String(f.mode))||![f.baseline_at,f.standings_at,f.schedule_at,f.transactions_at,f.faab_at].every(date)||f.matchup_at!==null&&!date(f.matchup_at))fail();for(const key of ["projections","availability","rosters"]){const records=f[key];if(!object(records)||Object.values(records).some(v=>!date(v)))fail();}}
   if (value.team.faab_remaining !== undefined && (!number(value.team.faab_remaining) || value.team.faab_remaining < 0)) fail();
   if (value.team.rank !== undefined && !integer(value.team.rank)) fail();
   if (value.team.record !== undefined && !string(value.team.record)) fail();
@@ -93,7 +100,7 @@ export function parseSnapshot(text: string): Snapshot {
     if (!Array.isArray(row) || row.length !== 9 || !integer(row[0]) || !string(row[1]) || !string(row[2]) || !number(row[3]) || !number(row[4]) || !string(row[5]) || !number(row[6]) || row[6] < 0 || !integer(row[7]) || !number(row[8])) fail();
   }
   if (Array.isArray(value.available_players)) for (const row of value.available_players) {
-    if (!Array.isArray(row) || row.length !== 4 || !string(row[0]) || !string(row[1]) || !string(row[2]) || !number(row[3])) fail();
+    if (!Array.isArray(row) || row.length !== 4 || !string(row[0]) || !string(row[1]) || !string(row[2]) || row[3]!==null&&!number(row[3])) fail();
   }
   if (value.injury_notes !== undefined) {
     if (!Array.isArray(value.injury_notes)) fail();

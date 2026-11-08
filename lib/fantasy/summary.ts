@@ -74,7 +74,7 @@ export function weeklyOutlook(snapshot:Snapshot){
   const matchup=snapshot.matchup,cut=snapshot.analysis_inputs?.playoff?.teams??(snapshot.rules?.playoffs as {teams?:number}|undefined)?.teams;
   const rank=snapshot.team.rank;
   const strategy=rank&&cut?(rank>cut?`Rank ${rank}, outside the ${cut}-team playoff cut. Prioritize near-term wins.`:`Rank ${rank}, inside the ${cut}-team playoff cut; qualification is not secured.`):"Playoff position is not established in the saved data.";
-  return {opponent:matchup?.opponent??"Opponent unavailable",mine:matchup?.live_projection??null,theirs:matchup?.opponent_live_projection??null,
+  return {at:snapshot.data_freshness?.matchup_at??snapshot.captured_at,opponent:matchup?.opponent??"Opponent unavailable",mine:matchup?.live_projection??null,theirs:matchup?.opponent_live_projection??null,
     conclusion:matchup?Math.abs(matchup.live_projection-matchup.opponent_live_projection)<.05?"The imported Yahoo projections are level.":`Projected ${points(Math.abs(matchup.live_projection-matchup.opponent_live_projection))} points ${matchup.live_projection>matchup.opponent_live_projection?"ahead of":"behind"} ${matchup.opponent}.`:"No Yahoo matchup projection was imported.",strategy};
 }
 export function buildGmSummary(snapshot:Snapshot,result:AnalysisResult|null,research:Research|null,changes:SummaryChange[]|undefined,needsAnalysis:boolean,now:number){
