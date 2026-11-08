@@ -3,6 +3,7 @@ import type { PlayerInput } from "./inputs.ts";
 import type { Research } from "./research.ts";
 import { researchForPlayer } from "./research.ts";
 import { historicalPoints, scoreStats } from "./scoring.ts";
+import { expired, observedAt } from "./freshness.ts";
 
 export type Evaluation = PlayerInput & {
   slot?: string; mean: number | null; samples: number[]; floor: number | null; ceiling: number | null;
@@ -63,6 +64,8 @@ export function evaluatePlayers(snapshot: Snapshot,research: Research|null,now:n
     if(p.usage_note)factors.push(`Observed usage: ${p.usage_note}`);
     if(p.matchup_note)factors.push(`Imported defensive matchup: ${p.matchup_note}`);
     if(p.environment_note)factors.push(`Imported environment: ${p.environment_note}`);
+    if(snapshot.data_freshness&&expired(observedAt(snapshot,"projections",p.id),now)&&!locked){mean=null;factors.push("Projection is stale or unverified in the targeted refresh; excluded from numerical recommendations.");}
+    if(snapshot.data_freshness&&expired(observedAt(snapshot,"availability",p.id),now))factors.push("Availability was not recently checked; verify injury/inactive status before acting.");
     if(samples.length<8)factors.push("Fewer than eight compatible historical games; floor, ceiling and simulation confidence unavailable.");
     return {...p,slot,mean,samples,floor:samples.length>=8?quantile(.2):null,ceiling:samples.length>=8?quantile(.8):null,unavailable,locked,confidence:samples.length>=8?"medium":"low",factors,conflicts,evidence:findings.map(f=>f.id),projection_source,variance_scale};
   });

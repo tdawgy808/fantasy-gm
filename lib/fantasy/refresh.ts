@@ -4,6 +4,8 @@ import { parseResearch, type Research } from "./research.ts";
 import { timestamp,sourceUrl } from "./inputs.ts";
 import { coverageReport, coverageStatus, type CollectionEvidence, type CoverageReport } from "./coverage.ts";
 import { initialState, type AnalysisStore } from "./analysis-service.ts";
+import { mergeTargeted } from "./targeted-refresh.ts";
+import { initialFreshness } from "./freshness.ts";
 export type RefreshAttempt={id:string;attempted_at:string;status:"Saved"|"Failed";message:string;report?:CoverageReport};
 export type RefreshBundle={schema_version:1;snapshot:Snapshot;research:Research|null;collection:CollectionEvidence};
 export function parseRefresh(raw:string):RefreshBundle{
@@ -22,12 +24,16 @@ export function parseRefresh(raw:string):RefreshBundle{
 }
 async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   const id=randomUUID(),at=new Date(now).toISOString(),record=await store.read(),state=record?.value??initialState();
-  const bundle=parseRefresh(raw);
   const prior=await store.yahoo();
+  const incoming=JSON.parse(raw),daily=incoming?.schema_version===2&&incoming?.mode==="daily";
+  if(daily&&!prior)throw Error("A comprehensive baseline is required.");
+  const bundle=parseRefresh(daily?JSON.stringify(mergeTargeted(incoming,prior!.snapshot,state.coverage)):raw);
+  if(!daily){bundle.snapshot.data_freshness=initialFreshness(bundle.snapshot);bundle.snapshot.research_checked_at=Object.fromEntries(bundle.collection.researched_player_ids.map(id=>[id,bundle.research?.collected_at??bundle.snapshot.captured_at]));}
+  if(!daily){const current=bundle.snapshot.analysis_inputs,old=prior?.snapshot.analysis_inputs;bundle.snapshot.refresh_changes={newly_available:(current?.available_ids??[]).filter(id=>!old?.available_ids?.includes(id)),recently_added:(old?.available_ids??[]).filter(id=>current?.teams?.some(t=>t.roster.some(p=>p.player_id===id))),changed_players:(current?.players??[]).filter(p=>{const before=old?.players.find(o=>o.id===p.id);return before&&(p.status!==before.status||p.projection!==before.projection);}).map(p=>p.id)};}
   if(prior&&Date.parse(bundle.snapshot.captured_at)<=Date.parse(prior.snapshot.captured_at))throw new Error("Refresh must be newer than saved Yahoo data.");
   const report=coverageReport(id,at,bundle.snapshot,bundle.research,bundle.collection);
   // A partial league collection never replaces a known complete source. Retain its original date.
-  const retain=!!prior&&(!report.trade_ready||!report.standings||!report.scoring||!report.rules);
+  const retain=!daily&&!!prior&&(!report.trade_ready||!report.standings||!report.scoring||!report.rules);
   const snapshot=retain?prior!.snapshot:bundle.snapshot;
   let research=bundle.research??state.research;
   if(research&&state.research&&Date.parse(research.collected_at)<Date.parse(state.research.collected_at))throw new Error("Research is older than saved data.");

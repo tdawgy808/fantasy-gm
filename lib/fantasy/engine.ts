@@ -7,12 +7,12 @@ import { optimize } from "./optimizer.ts";
 import { waiverScout } from "./waivers.ts";
 import { tradeScout } from "./trades.ts";
 import { playoffOutlook } from "./playoffs.ts";
-export const ENGINE_VERSION="1.1.0";
+export const ENGINE_VERSION="1.2.0";
 export const fingerprint=(v:unknown)=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
 type PreviousAnalysis={yahoo_at:string;news_at:string|null;settings:Settings;lineup:{assignments:{player:{id:string}}[]};waivers:{id:string}[]};
 export function calculate(snapshot:Snapshot,research:Research|null,settings:Settings,previous:PreviousAnalysis|null=null,now=Date.now()) {
   const players=evaluatePlayers(snapshot,research,now);const lineup=optimize(snapshot,players,settings);
-  const waivers=waiverScout(snapshot,players,settings);
+  const waivers=waiverScout(snapshot,players,settings,now);
   const result={schema_version:1 as const,engine_version:ENGINE_VERSION,calculated_at:new Date(now).toISOString(),yahoo_at:snapshot.captured_at,news_at:research?.collected_at??null,source_hash:fingerprint({snapshot,research,settings,engine:ENGINE_VERSION}),settings,lineup,waivers:waivers.slice(0,10),all_waivers:waivers,
     trades:tradeScout(snapshot,players,settings,now),playoffs:playoffOutlook(snapshot),players,
     yahoo_probability:snapshot.matchup?.win_probability??null,

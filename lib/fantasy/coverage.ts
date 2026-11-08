@@ -12,6 +12,7 @@ export type CollectionEvidence={
 };
 export type CoverageReport=ReturnType<typeof coverageReport>;
 export function coverageStatus(c:CoverageReport):CoverageStatus{
+  if(c.collection_mode==="daily")return "Partial";
   return c.import_status==="Saved"&&!!c.deployed_read_verified_at&&!c.retained&&c.trade_ready&&c.schedule_ready&&c.standings&&c.scoring&&c.rules&&c.limitations.length===0&&c.findings_imported>0&&c.missing_publication===0&&c.players_researched===c.research_targets&&c.sources.every(s=>s.status==="accessed")&&["QB","RB","WR","TE","K","DEF"].every(pos=>c.pool.some(p=>p.position===pos&&p.exhausted))?"Complete":"Partial";
 }
 export function coverageReport(id:string,at:string,snapshot:Snapshot,research:Research|null,e:CollectionEvidence){
@@ -22,6 +23,9 @@ export function coverageReport(id:string,at:string,snapshot:Snapshot,research:Re
   const schedule=input?.schedule?.filter(g=>g.week>=snapshot.week&&g.week<(input.playoff?.start_week??19))??[];
   const findings=research?.findings??[],injuries=new Set(findings.filter(f=>["injury","availability"].includes(f.category)&&(f.published_at||f.published_date)&&Date.parse(at)-Date.parse(f.published_at??f.published_date!)<172800000).map(f=>f.player_id??f.player));
   return {id,attempted_at:at,yahoo_at:snapshot.captured_at,research_at:research?.collected_at??null,
+    collection_mode:snapshot.data_freshness?.mode??"weekly",baseline_at:snapshot.data_freshness?.baseline_at??snapshot.captured_at,
+    checked_projections:Object.values(snapshot.data_freshness?.projections??{}).filter(at=>at===snapshot.captured_at).length,
+    checked_availability:Object.values(snapshot.data_freshness?.availability??{}).filter(at=>at===snapshot.captured_at).length,
     status:"Partial" as CoverageStatus,import_status:"Pending" as "Pending"|"Saved"|"Failed",deployed_read_verified_at:null as string|null,
     teams_discovered:teams.length,expected_teams:expected,complete_rosters:complete.length,partial_rosters:e.rosters.filter(r=>r.status==="Partial").length,failed_rosters:expected-complete.length-e.rosters.filter(r=>r.status==="Partial").length,
     rostered_players:teams.reduce((n,t)=>n+t.roster.length,0),remaining_matchups:schedule.length,expected_matchups:expectedGames,
