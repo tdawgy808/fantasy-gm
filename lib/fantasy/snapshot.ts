@@ -9,6 +9,7 @@ export type Snapshot = {
   schema_version: 1 | 2; captured_at: string; timezone: string; method: string;
   analysis_inputs?: AnalysisInputs;
   data_freshness?:DataFreshness;
+  review_context?:{first_kickoff_at:string;source_url:string;player_kickoffs?:Record<string,string>};
   research_checked_at?:Record<string,string>;
   refresh_changes?:{newly_available:string[];recently_added:string[];changed_players:string[]};
   league: { id: number; season: number; name: string };
@@ -62,6 +63,7 @@ export function parseSnapshot(text: string): Snapshot {
       !object(value.team) || !integer(value.team.id) || !string(value.team.name) ||
       !object(value.sources) || !Object.keys(value.sources).length || !Array.isArray(value.roster) || !value.roster.length || value.roster.length > 100) fail();
   try { new Intl.DateTimeFormat("en-US", { timeZone: value.timezone }); } catch { fail(); }
+  if(value.review_context!==undefined){const c=value.review_context;const iso=(v:unknown)=>string(v)&&/T.*(?:Z|[+-]\d\d:\d\d)$/.test(v)&&Number.isFinite(Date.parse(v));if(!object(c)||!iso(c.first_kickoff_at)||!string(c.source_url))fail();const u=new URL(c.source_url);if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash)fail();if(c.player_kickoffs!==undefined&&(!object(c.player_kickoffs)||Object.values(c.player_kickoffs).some(v=>!iso(v))))fail();}
   if(value.refresh_changes!==undefined){const c=value.refresh_changes;if(!object(c)||![c.newly_available,c.recently_added,c.changed_players].every(a=>Array.isArray(a)&&a.length<=800&&a.every(string)))fail();}
   if(value.research_checked_at!==undefined&&(!object(value.research_checked_at)||Object.values(value.research_checked_at).some(v=>!string(v)||!Number.isFinite(Date.parse(v))||Date.parse(v)>Date.now()+300000)))fail();
   if(value.data_freshness!==undefined){const f=value.data_freshness;const date=(v:unknown)=>string(v)&&Number.isFinite(Date.parse(v))&&Date.parse(v)<=Date.now()+300000;if(!object(f)||!["weekly","daily"].includes(String(f.mode))||![f.baseline_at,f.standings_at,f.schedule_at,f.transactions_at,f.faab_at].every(date)||f.matchup_at!==null&&!date(f.matchup_at))fail();for(const key of ["projections","availability","rosters"]){const records=f[key];if(!object(records)||Object.values(records).some(v=>!date(v)))fail();}}

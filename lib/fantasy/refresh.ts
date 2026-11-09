@@ -6,8 +6,11 @@ import { coverageReport, coverageStatus, type CollectionEvidence, type CoverageR
 import { initialState, type AnalysisStore } from "./analysis-service.ts";
 import { mergeTargeted } from "./targeted-refresh.ts";
 import { initialFreshness } from "./freshness.ts";
+import { appendResults, reviewReadiness } from "./weekly-service.ts";
+import { parseFinalResults } from "./weekly-model.ts";
+import type { FinalWeekResults } from "./weekly-types.ts";
 export type RefreshAttempt={id:string;attempted_at:string;status:"Saved"|"Failed";message:string;report?:CoverageReport};
-export type RefreshBundle={schema_version:1;snapshot:Snapshot;research:Research|null;collection:CollectionEvidence};
+export type RefreshBundle={schema_version:1;snapshot:Snapshot;research:Research|null;collection:CollectionEvidence;final_results?:FinalWeekResults[]};
 export function parseRefresh(raw:string):RefreshBundle{
   const b=JSON.parse(raw);checkPrivateFields(b);
   if(b?.schema_version!==1)throw new Error("Unsupported comprehensive refresh format.");
@@ -20,7 +23,9 @@ export function parseRefresh(raw:string):RefreshBundle{
   const playerIds=new Set(snapshot.analysis_inputs?.players.map(p=>p.id)??[]);
   if(e.researched_player_ids.some(id=>!e.research_target_ids.includes(id)||!playerIds.has(id)))throw new Error("Research coverage identities do not match targets and players.");
   for(const r of e.rosters.filter(r=>r.status==="Complete")){const team=snapshot.analysis_inputs?.teams?.find(t=>t.id===r.team_id);if(!team||!r.player_count||team.roster.length!==r.player_count||r.ids_verified!==true||!["offense","kicker","defense"].every(v=>r.views?.includes(v)))throw new Error("Roster evidence does not match imported records and all roster views.");}
-  return {schema_version:1,snapshot,research,collection:e};
+  if(b.final_results!==undefined&&(!Array.isArray(b.final_results)||b.final_results.length>18))throw Error("Invalid weekly results collection.");
+  const final_results=b.final_results?.map((r:unknown)=>parseFinalResults(r));
+  return {schema_version:1,snapshot,research,collection:e,...(final_results?{final_results}:{})};
 }
 async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   const id=randomUUID(),at=new Date(now).toISOString(),record=await store.read(),state=record?.value??initialState();
@@ -49,7 +54,9 @@ async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   report.import_status="Saved";report.findings_imported=research?.findings.length??0;
   report.status=coverageStatus(report);
   const attempt:RefreshAttempt={id,attempted_at:at,status:"Saved",message:retain?"Partial collection; older Yahoo source retained.":"Validated source bundle saved; deployed read verification pending.",report};
-  const next={...state,research,bundled_snapshot:snapshot,coverage:report,refresh_attempts:[...(state.refresh_attempts??[]),attempt].slice(-50)};
+  let next={...state,research,bundled_snapshot:snapshot,coverage:report,refresh_attempts:[...(state.refresh_attempts??[]),attempt].slice(-50)};
+  if(!daily&&bundle.final_results?.length)next={...next,...await appendResults(store,next,bundle.final_results,now)};
+  if(bundle.snapshot.week>1)report.review_readiness=reviewReadiness(next,bundle.snapshot.league.season,bundle.snapshot.week-1);
   await store.write(next,record?.etag);await store.archive?.(attempt);return next;
 }
 export async function importRefresh(store:AnalysisStore,raw:string,now=Date.now()){

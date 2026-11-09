@@ -11,7 +11,7 @@ import DataCoverage from "./data-coverage";
 type View=AnalysisState&{needs_analysis:boolean;latest_yahoo_at:string|null;live_news_configured:boolean};
 const time=(value:string|null|undefined)=>value?new Date(value).toLocaleString():"Unavailable";
 const number=(value:number|null|undefined)=>value===null||value===undefined?"Unavailable":value.toFixed(1);
-export default function DailyBriefing({snapshot,mode="briefing",target="",onNavigate}:{snapshot:Snapshot;mode?:"summary"|"briefing";target?:string;onNavigate?:(section:BriefingSection)=>void}) {
+export default function DailyBriefing({snapshot,mode="briefing",target="",onNavigate,onReview}:{snapshot:Snapshot;mode?:"summary"|"briefing";target?:string;onReview?:()=>void;onNavigate?:(section:BriefingSection)=>void}) {
   const [view,setView]=useState<View|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false),[selected,setSelected]=useState("");
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(timer);},[]);
@@ -29,7 +29,7 @@ export default function DailyBriefing({snapshot,mode="briefing",target="",onNavi
   return <section className="briefing" aria-label={mode==="summary"?"GM Summary":"Daily Briefing"}>
     <div className="briefing-toolbar"><span className="small muted">Advisory only · ${snapshot.team.faab_remaining??"?"} FAAB</span><button className="primary-button" disabled={busy||!view||unsaved} onClick={()=>void action({action:"refresh"})}>{busy?"Working…":"Refresh Analysis"}</button></div>
     {error&&<div role="alert" className="notice danger">{error} The last successful analysis is retained.</div>}
-    {mode==="summary"?<GmSummary snapshot={snapshot} state={view} pending={!view||!!view.needs_analysis||unsaved} now={now} onOpen={open}/>:<>
+    {mode==="summary"?<GmSummary onReview={onReview} snapshot={snapshot} state={view} pending={!view||!!view.needs_analysis||unsaved} now={now} onOpen={open}/>:<>
       <p className="small muted">Refresh Analysis recalculates saved imports; it does not collect Yahoo data.</p><nav className="briefing-jumps" aria-label="Briefing sections">{(["lineup","intelligence","waivers","faab","trades","upcoming","playoffs"] as const).map(section=><button className="text-button mint-text" key={section} onClick={()=>{document.getElementById("briefing-"+section)?.scrollIntoView({block:"start"});}}>{section==="faab"?"FAAB":section[0].toUpperCase()+section.slice(1)}</button>)}</nav>{(status.stale||status.research_stale)&&<div className="notice">{status.status}. These are saved results; verify current inputs before acting.</div>}
       {(unsaved||view?.needs_analysis)&&<div className="notice">{unsaved?"This tab differs from the saved Yahoo snapshot. Save the import and reload before calculating.":"Inputs or settings changed. Refresh Analysis before relying on these results."}</div>}
       <details className="card"><summary>Freshness, strategy settings & research imports</summary><div className="freshness-grid"><div>Yahoo import<p>{time(view?.latest_yahoo_at)}</p></div><div>NFL research<p>{time(view?.research?.collected_at)}</p></div><div>Successful analysis<p>{time(result?.calculated_at)}</p></div></div>
