@@ -5,10 +5,15 @@ import { parseResearch, type Research } from "./research.ts";
 import type { CoverageReport } from "./coverage.ts";
 import type { RefreshAttempt } from "./refresh.ts";
 import { captureSummaryBaseline, compareSummaryBaselines, type SummaryBaseline, type SummaryChange } from "./summary.ts";
-export type AnalysisState={schema_version:1;bundled_snapshot?:Snapshot;coverage?:CoverageReport;refresh_attempts?:RefreshAttempt[];summary_baseline?:SummaryBaseline;summary_changes?:SummaryChange[];settings:Settings;research:Research|null;analysis:AnalysisResult|null};
+import type { HistoryRecord, ReviewIndex } from "./weekly-types.ts";
+import { emptyReviewIndex, historyRecord, reference } from "./weekly-history.ts";
+import { decisionData } from "./weekly-model.ts";
+export type AnalysisState={schema_version:1;review_index?:ReviewIndex;bundled_snapshot?:Snapshot;coverage?:CoverageReport;refresh_attempts?:RefreshAttempt[];summary_baseline?:SummaryBaseline;summary_changes?:SummaryChange[];settings:Settings;research:Research|null;analysis:AnalysisResult|null};
 export const initialState=():AnalysisState=>({schema_version:1,settings:{...defaultSettings},research:null,analysis:null});
 export type StateRecord={value:AnalysisState;etag:string};
 export interface AnalysisStore {
+  putHistory?(record:HistoryRecord):Promise<void>;
+  readHistory?(id:string):Promise<HistoryRecord|null>;
   archive?(attempt:RefreshAttempt):Promise<void>;
   read():Promise<StateRecord|null>;
   write(value:AnalysisState,etag?:string):Promise<void>;
@@ -26,6 +31,7 @@ export async function runAnalysis(store:AnalysisStore,now=Date.now(),compute=cal
   const baseline=captureSummaryBaseline(analysis,state.research,source.snapshot.week);
   const previous=state.summary_baseline??(state.analysis?captureSummaryBaseline(state.analysis,null,state.analysis.yahoo_at===source.snapshot.captured_at?source.snapshot.week:null):null);
   const next={...state,analysis,summary_baseline:baseline,summary_changes:compareSummaryBaselines(previous,baseline,state.research,now)};
+  if(store.putHistory){const index=structuredClone(state.review_index??emptyReviewIndex()),last=index.decisions.at(-1),analysisHash=fingerprint({players:analysis.players,lineup:analysis.lineup,waivers:analysis.waivers,trades:analysis.trades,playoffs:analysis.playoffs});if(last?.source_hash!==analysis.source_hash||last.engine_version!==analysis.engine_version||last.analysis_hash!==analysisHash){const decision=historyRecord(decisionData(source.snapshot,state.research,analysis,now));await store.putHistory(decision);index.decisions.push({...reference(decision),analysis_hash:analysisHash});}next.review_index=index;}
   // ETag compare-and-swap rejects concurrent settings/research/results changes.
   await store.write(next,record?.etag);
   return next;

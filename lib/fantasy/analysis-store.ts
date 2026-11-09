@@ -9,6 +9,7 @@ import { parseSettings } from "./strategies";
 import { parseResearch } from "./research";
 import type { AnalysisState, AnalysisStore } from "./analysis-service";
 import { privateReadOptions } from "./blob-options";
+import { decodeHistory, validateHistoryId } from "./weekly-history";
 
 const blobPath="fantasy-gm/2026/121612/5/analysis-state.json";
 const localPath=join(process.cwd(),"private","analysis-state.json");
@@ -23,6 +24,8 @@ async function localRead(){try{const text=await readFile(localPath,"utf8");retur
 // A process-local queue serializes local dev file writes. Hosted writes use durable Blob ETags.
 let queue:Promise<void>=Promise.resolve();
 export const analysisStore:AnalysisStore={
+  async readHistory(id){validateHistoryId(id);if(hostedStorageConfigured()){const result=await get(`fantasy-gm/2026/121612/5/gm-history/${id}.json`,privateReadOptions());if(!result||result.statusCode!==200)return null;return decodeHistory(await boundedText(result.stream,5*1024*1024));}if(!localAllowed())throw Error("Private storage is not configured.");try{return decodeHistory(await readFile(join(process.cwd(),"private","gm-history",`${id}.json`),"utf8"));}catch(error){if((error as NodeJS.ErrnoException).code==="ENOENT")return null;throw error;}},
+  async putHistory(record){const text=JSON.stringify(record);decodeHistory(text);if(Buffer.byteLength(text)>5*1024*1024)throw Error("Weekly history exceeds 5 MB.");if(hostedStorageConfigured()){try{await put(`fantasy-gm/2026/121612/5/gm-history/${record.id}.json`,text,{access:"private",addRandomSuffix:false,allowOverwrite:false,contentType:"application/json"});return;}catch(error){const prior=await this.readHistory!(record.id);if(prior&&JSON.stringify(prior)===text)return;throw error;}}if(!localAllowed())throw Error("Private storage is not configured.");const dir=join(process.cwd(),"private","gm-history");await mkdir(dir,{recursive:true});try{await writeFile(join(dir,`${record.id}.json`),text,{flag:"wx"});}catch(error){if((error as NodeJS.ErrnoException).code!=="EEXIST"||JSON.stringify(await this.readHistory!(record.id))!==text)throw error;}},
   async archive(attempt){const text=JSON.stringify(attempt);if(hostedStorageConfigured()){await put(`fantasy-gm/2026/121612/5/refresh-history/${attempt.id}.json`,text,{access:"private",addRandomSuffix:false,allowOverwrite:true,contentType:"application/json"});return;}if(!localAllowed())throw new Error("Private storage is not configured.");const dir=join(process.cwd(),"private","refresh-history");await mkdir(dir,{recursive:true});await writeFile(join(dir,`${attempt.id}.json`),text);},
   async read(){
     if(hostedStorageConfigured()) {const result=await get(blobPath,privateReadOptions());if(!result||result.statusCode!==200)return null;return {value:decode(await boundedText(result.stream,3*1024*1024)),etag:result.blob.etag};}

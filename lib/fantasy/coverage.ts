@@ -1,5 +1,6 @@
 import type { Snapshot } from "./snapshot.ts";
 import type { Research } from "./research.ts";
+import type { ReviewReadiness } from "./weekly-types.ts";
 export type CoverageStatus="Complete"|"Partial"|"Missing"|"Failed";
 export type CollectionEvidence={
   expected_team_ids:number[]; rosters:{team_id:number;status:CoverageStatus;collected_at:string;player_count:number;views?:string[];ids_verified?:boolean}[];
@@ -23,6 +24,7 @@ export function coverageReport(id:string,at:string,snapshot:Snapshot,research:Re
   const schedule=input?.schedule?.filter(g=>g.week>=snapshot.week&&g.week<(input.playoff?.start_week??19))??[];
   const findings=research?.findings??[],injuries=new Set(findings.filter(f=>["injury","availability"].includes(f.category)&&(f.published_at||f.published_date)&&Date.parse(at)-Date.parse(f.published_at??f.published_date!)<172800000).map(f=>f.player_id??f.player));
   return {id,attempted_at:at,yahoo_at:snapshot.captured_at,research_at:research?.collected_at??null,
+    review_readiness:null as ReviewReadiness|null,
     collection_mode:snapshot.data_freshness?.mode??"weekly",baseline_at:snapshot.data_freshness?.baseline_at??snapshot.captured_at,
     checked_projections:Object.values(snapshot.data_freshness?.projections??{}).filter(at=>at===snapshot.captured_at).length,
     checked_availability:Object.values(snapshot.data_freshness?.availability??{}).filter(at=>at===snapshot.captured_at).length,

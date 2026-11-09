@@ -37,3 +37,7 @@ Before declaring completion, verify counts and player identities in the hosted o
 ## Daily targeted mode
 
 The default `Refresh Fantasy` workflow can now use a current-week comprehensive baseline plus explicit daily deltas, rather than repeating the full checklist. Use weekly comprehensive collection for a new week, an expired baseline, changed rules, or uncertain ownership. See [personalized available players and refresh modes](personalized-available-and-refreshes.md) for the daily contract, collection priorities, original-date retention and mandatory critical injury scans. Data Coverage imports both formats and offers a saved-data collection plan. Refresh Analysis never collects sources.
+
+## Tuesday finalized results and pregame archive
+
+On the first comprehensive refresh each Tuesday, verify the previous week is actually final in Yahoo, collect its final matchup, all archived owner starters and eligible bench outcomes, any available shortlist outcomes/verified claims, and all ten final standings. Add the optional `final_results` array to the comprehensive import; the Weekly GM Review is generated from the immutable decision archive. If games or results remain pending, preserve that status. Collect verified kickoff metadata before the new week begins and run Refresh Analysis to freeze the new recommendations. Corrections append versions; no past prediction is reconstructed. See [the result contract and full workflow](weekly-gm-review.md). This adds no automatic web collection or Yahoo transactions.
