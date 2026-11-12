@@ -30,7 +30,7 @@ export const findingsFor=(research:Research|null,id:string,name:string)=>researc
 const newsKey=(f:Finding)=>`${f.player_id??f.player.toLowerCase()}|${f.category}|${f.source_url}|${f.claim.toLowerCase().replace(/\s+/g," ").trim()}`;
 export function captureSummaryBaseline(result:AnalysisResult,research:Research|null,week:number|null):SummaryBaseline{
   const owner=result.players.filter(p=>p.slot!==undefined);
-  const top=result.waivers.find(w=>w.immediate_gain>=1);
+  const top=result.waivers.find(w=>w.immediate_gain>=1&&(w.recommendation===undefined||w.recommendation==="ADD"));
   return {version:1,analysis_at:result.calculated_at,week,owner:owner.map(p=>({id:p.id,name:p.name,slot:p.slot!,status:normalizedStatus(p,week),mean:p.mean})),starters:result.lineup.assignments.map(a=>a.player.id),waiver:top?{id:top.id,name:top.player,gain:top.immediate_gain}:null,settings:result.settings,
     news:research?owner.flatMap(p=>findingsFor(research,p.id,p.name).filter(f=>["injury","availability","workload","depth_chart"].includes(f.category)).map(f=>({key:newsKey(f),player_id:p.id}))):null};
 }
@@ -90,7 +90,7 @@ export function buildGmSummary(snapshot:Snapshot,result:AnalysisResult|null,rese
     }
     for(const c of result.lineup.changes){const p=result.players.find(p=>p.name===c.player);if(!p||p.locked||p.unavailable)continue;
       actions.push({id:`start:${p.id}`,label:"START",title:`${p.name} at ${c.slot}`,body:`The saved optimizer recommends this starting change.${result.lineup.projection!==null&&result.lineup.current_projection!==null?` Full-lineup projection change: ${points(result.lineup.projection-result.lineup.current_projection)} points.`:""}`,section:"lineup",player_ids:[p.id],evidence_ids:p.evidence,priority:110});}
-    const waiver=result.waivers.find(w=>w.immediate_gain>=1);
+    const waiver=result.waivers.find(w=>w.immediate_gain>=1&&(w.recommendation===undefined||w.recommendation==="ADD"));
     if(waiver)actions.push({id:`add:${waiver.id}`,label:"ADD",title:`Consider ${waiver.player}`,body:`${points(waiver.immediate_gain)} projected points above ${waiver.replaces??"the eligible starter"}.${waiver.bid!==null?` Estimated bid $${waiver.bid}; confirm availability before acting.`:" Review availability and FAAB before acting."}`,section:"waivers",player_ids:[waiver.id],evidence_ids:waiver.evidence,priority:60+Math.min(20,waiver.immediate_gain)});
     const trade=result.trades.opportunities[0];
     if(trade){const ps=result.players.filter(p=>p.name===trade.send||p.name===trade.receive);actions.push({id:"trade",label:"CONSIDER TRADE",title:trade.opening_offer,body:`Review the modeled mutual benefit with ${trade.partner}; acceptance is unknown.`,section:"trades",player_ids:ps.map(p=>p.id),evidence_ids:trade.evidence,priority:50});}

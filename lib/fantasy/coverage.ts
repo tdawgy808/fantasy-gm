@@ -1,6 +1,10 @@
 import type { Snapshot } from "./snapshot.ts";
 import type { Research } from "./research.ts";
 import type { ReviewReadiness } from "./weekly-types.ts";
+import { scoutPlayer, scoutingPool, scoutingPositions } from "./scouting.ts";
+import { evaluatePlayers } from "./players.ts";
+import { waiverScout } from "./waivers.ts";
+import { defaultSettings } from "./strategies.ts";
 export type CoverageStatus="Complete"|"Partial"|"Missing"|"Failed";
 export type CollectionEvidence={
   expected_team_ids:number[]; rosters:{team_id:number;status:CoverageStatus;collected_at:string;player_count:number;views?:string[];ids_verified?:boolean}[];
@@ -12,6 +16,22 @@ export type CollectionEvidence={
   limitations:string[];
 };
 export type CoverageReport=ReturnType<typeof coverageReport>;
+export function scoutingCoverage(snapshot:Snapshot,research:Research|null,sources:CollectionEvidence["sources"],now:number){
+  const players=evaluatePlayers(snapshot,research,now),available=new Set(snapshot.analysis_inputs?.available_ids??[]);
+  const scouting=Object.fromEntries(players.filter(p=>available.has(p.id)).map(p=>[p.id,scoutPlayer(snapshot,p,research,now,p.unavailable||p.locked)]));
+  const pool=scoutingPool(snapshot,players,scouting),ranked=new Set(waiverScout(snapshot,players,defaultSettings,now,scouting).map(w=>w.id));
+  const by_position=scoutingPositions.map(position=>{
+    const ids=[...new Set([...pool[position],...players.filter(p=>p.position===position&&scouting[p.id]?.supported).map(p=>p.id)])];
+    return {position, nominated:pool[position].length, evaluated:ids.filter(id=>scouting[id].supported).length,
+      historical:ids.filter(id=>scouting[id].windows.some(w=>w.averages.length>0)).length,
+      usage:ids.filter(id=>scouting[id].recent_usage).length, research:ids.filter(id=>scouting[id].current_research).length,
+      independent:ids.filter(id=>scouting[id].projection!==null).length, personalized:ids.filter(id=>ranked.has(id)).length};
+  });
+  const missing_sources=sources.filter(s=>s.status!=="accessed");
+  const readiness=by_position.every(p=>p.nominated>=5&&p.evaluated>=5&&p.historical>=5&&p.usage>=5&&p.research>=5)&&!missing_sources.length?"Ready":
+    by_position.some(p=>p.evaluated>0||p.historical>0||p.research>0)?"Partial":"Missing";
+  return {by_position, missing_sources, readiness};
+}
 export function coverageStatus(c:CoverageReport):CoverageStatus{
   if(c.collection_mode==="daily")return "Partial";
   return c.import_status==="Saved"&&!!c.deployed_read_verified_at&&!c.retained&&c.trade_ready&&c.schedule_ready&&c.standings&&c.scoring&&c.rules&&c.limitations.length===0&&c.findings_imported>0&&c.missing_publication===0&&c.players_researched===c.research_targets&&c.sources.every(s=>s.status==="accessed")&&["QB","RB","WR","TE","K","DEF"].every(pos=>c.pool.some(p=>p.position===pos&&p.exhausted))?"Complete":"Partial";
@@ -24,7 +44,7 @@ export function coverageReport(id:string,at:string,snapshot:Snapshot,research:Re
   const schedule=input?.schedule?.filter(g=>g.week>=snapshot.week&&g.week<(input.playoff?.start_week??19))??[];
   const findings=research?.findings??[],injuries=new Set(findings.filter(f=>["injury","availability"].includes(f.category)&&(f.published_at||f.published_date)&&Date.parse(at)-Date.parse(f.published_at??f.published_date!)<172800000).map(f=>f.player_id??f.player));
   return {id,attempted_at:at,yahoo_at:snapshot.captured_at,research_at:research?.collected_at??null,
-    review_readiness:null as ReviewReadiness|null,
+    review_readiness:null as ReviewReadiness|null, scouting:scoutingCoverage(snapshot,research,e.sources,Date.parse(at)),
     collection_mode:snapshot.data_freshness?.mode??"weekly",baseline_at:snapshot.data_freshness?.baseline_at??snapshot.captured_at,
     checked_projections:Object.values(snapshot.data_freshness?.projections??{}).filter(at=>at===snapshot.captured_at).length,
     checked_availability:Object.values(snapshot.data_freshness?.availability??{}).filter(at=>at===snapshot.captured_at).length,

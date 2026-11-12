@@ -71,7 +71,7 @@ test('waiver strategy changes rankings using observed future inputs and all cand
   assert.equal(win.waivers[0].id,'candidate');assert.equal(up.waivers[0].id,'stash');assert.equal(win.all_waivers.length,2);
 });
 test('FAAB bids and ranges stay within budget, zero balance, and supported increments',()=>{
-  for(const balance of [0,3,100]){const s=fixture();s.team.faab_remaining=balance;s.analysis_inputs.waiver_increment=2;for(const w of calculate(s,null,defaultSettings,null,now).waivers){assert.ok(w.bid>=0&&w.bid<=balance);assert.ok(w.range[1]<=balance);assert.equal(w.bid%2,0);assert.equal(w.remaining,balance-w.bid);}}
+  for(const balance of [0,3,100]){const s=fixture();s.rules.roster_positions.push("BN");s.team.faab_remaining=balance;s.analysis_inputs.waiver_increment=2;const adds=calculate(s,null,defaultSettings,null,now).waivers.filter(w=>w.recommendation==="ADD");assert.ok(adds.length);for(const w of adds){assert.notEqual(w.bid,null);assert.ok(w.bid>=0&&w.bid<=balance);assert.ok(w.range[1]<=balance);assert.equal(w.bid%2,0);assert.equal(w.remaining,balance-w.bid);}}
 });
 test('trade deadline is enforced before proposing anything; missing rosters produce no invented offers',()=>{
   const s=fixture();s.rules.trade_deadline='2026-11-01';assert.equal(calculate(s,null,defaultSettings,null,now).trades.opportunities.length,0);assert.match(calculate(s,null,defaultSettings,null,now).trades.limitation,/deadline/);

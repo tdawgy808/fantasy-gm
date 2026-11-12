@@ -1,6 +1,6 @@
 // Version 2 adds explicit analysis inputs; existing version 1 snapshots remain valid.
 export type ScoringRule = { stat: string; points: number; bonuses?: { threshold: number; points: number }[]; bonus_mode?: "cumulative" | "highest"; bands?: { min: number; max?: number; points: number }[] };
-export type History = { week: number; season: number; played_at: string; stats?: Record<string, number>; points?: number; scoring_id?: string };
+export type History = { week: number; season: number; played_at: string; stats?: Record<string, number>; points?: number; scoring_id?: string; source?: { url: string; retrieved_at: string } };
 export type PlayerInput = {
   id: string; name: string; position: string; team?: string; eligible: string[];
   projection?: number; status?: string; bye?: number; game_status?: string; actual?: number;
@@ -31,6 +31,15 @@ export function sourceUrl(v: unknown): boolean {
   try { const u = new URL(v); return u.protocol === "https:" && !u.username && !u.password && !u.search && !u.hash && u.hostname.includes("."); } catch { return false; }
 }
 export function timestamp(v: unknown): v is string { return str(v) && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(v) && Number.isFinite(Date.parse(v)) && Date.parse(v) <= Date.now() + 300000; }
+export function mergeGameHistory(previous: History[], incoming: History[]): History[] {
+  const games = new Map(previous.map(game=>[`${game.season}:${game.week}`,game]));
+  for (const game of incoming) {
+    const key = `${game.season}:${game.week}`, old = games.get(key);
+    if (old?.source && (!game.source || Date.parse(old.source.retrieved_at)>Date.parse(game.source.retrieved_at))) continue;
+    games.set(key,game);
+  }
+  return [...games.values()].sort((a,b)=>b.season-a.season||b.week-a.week).slice(0,50);
+}
 function stats(v: unknown): boolean { return obj(v) && Object.keys(v).length <= 100 && Object.entries(v).every(([k,n]) => /^[a-zA-Z0-9_]+$/.test(k) && num(n)); }
 export function validateInputs(v: unknown): asserts v is AnalysisInputs {
   function fail(): never { throw new Error("Invalid version 2 analysis inputs. Check player identities, scoring, eligibility, schedules and evidence."); }
@@ -49,6 +58,7 @@ export function validateInputs(v: unknown): asserts v is AnalysisInputs {
       if (!arr(p.history, 50)) fail(); const seen = new Set<string>();
       for (const h of p.history) {
         if (!obj(h) || !positive(h.week) || h.week > 18 || !positive(h.season) || !timestamp(h.played_at) || (!stats(h.stats) && !num(h.points)) || h.stats !== undefined && !stats(h.stats) || h.scoring_id !== undefined && !str(h.scoring_id)) fail();
+        if (h.source !== undefined && (!obj(h.source) || !sourceUrl(h.source.url) || !timestamp(h.source.retrieved_at) || Date.parse(h.source.retrieved_at) < Date.parse(h.played_at))) fail();
         const key = `${h.season}-${h.week}`; if (seen.has(key)) fail(); seen.add(key);
       }
     }

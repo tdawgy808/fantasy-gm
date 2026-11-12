@@ -1,6 +1,6 @@
 import { checkPrivateFields, parseSnapshot, type Snapshot } from "./snapshot.ts";
 import type { PlayerInput, TeamInput } from "./inputs.ts";
-import { timestamp, sourceUrl } from "./inputs.ts";
+import { timestamp, sourceUrl, mergeGameHistory, validateInputs } from "./inputs.ts";
 import { initialFreshness } from "./freshness.ts";
 import type { Research } from "./research.ts";
 import type { CollectionEvidence, CoverageReport } from "./coverage.ts";
@@ -20,6 +20,11 @@ export function mergeTargeted(b:TargetedRefresh,base:Snapshot,coverage:CoverageR
   for(const patch of b.player_updates){
     if(!patch||typeof patch.id!=="string"||Object.keys(patch).some(k=>!fields.has(k)))fail();
     const old=input.players.find(p=>p.id===patch.id);const next={...old,...patch} as PlayerInput;
+    if(old&&patch.history&&old.history){
+      // Validate the incoming rows before deduplication can hide malformed evidence.
+      validateInputs({players:[next]});
+      if(next.name===old.name&&next.position===old.position)next.history=mergeGameHistory(old.history,patch.history);
+    }
     for(const [key,value] of Object.entries(patch))if(value===null)delete (next as unknown as Record<string,unknown>)[key];
     if(old)input.players[input.players.indexOf(old)]=next;else input.players.push(next);
     if(Object.hasOwn(patch,"projection")||Object.hasOwn(patch,"projected_stats"))fresh.projections[patch.id]=at;

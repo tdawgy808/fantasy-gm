@@ -50,3 +50,15 @@ Per-field dates live in `data_freshness`, not in source retrieval metadata. A ta
 ## Validation and release
 
 Run tests, lint, build and the publication audit. Synthetic tests cover merges, omitted availability, ownership/credential rejection, week changes, weekly pool replacement, stale projections, budget/rule gaps, relative position ranking, protected drops, reusable research and recalculation from stored inputs. Browser review covers Recommended, All Players search/filter, player evidence, strategy refresh and mobile layout. Real league fixtures and screenshots remain ignored/private. Deployment and authentication are unchanged; no additional account or environment variable is needed. Production release requires owner approval.
+
+## Independent waiver scouting
+
+Download the collection plan from **Data Coverage**. For a weekly refresh, use its six position lists as a starting point, then recheck Yahoo availability and add newly discovered breakouts. Aim for at least five verified available players per position and record gaps when the pool or source coverage falls short. Use the daily shortlist for changed roles and new free agents, plus the injury and inactive checks for the current roster and matchup.
+
+Add source-backed regular-season games to the matching Yahoo player's `analysis_inputs.players[].history`. Each game records `season`, `week`, `played_at`, `stats` and `source: {url, retrieved_at}`. Copy observed stats and explicit zeroes. Leave blank fields unknown. Sources must be credential-free HTTPS. Weekly and targeted imports merge game rows by season and week for the same identity and keep the dates of retained records. A recent-window average uses only games with the particular stat present. Report coverage gaps in the refresh bundle.
+
+Capture injury, practice, usage and role reports through the existing `research.findings` import, with publication and retrieval times, quality and confirmation. Use exact Yahoo player IDs for scoped `opportunity: {season, week, direction}` assessments. Directions are `up`, `down` or `stable`. Record speculation as such. An injury report about a teammate may support a conditional opportunity, while the active list and the depth chart determine whether the opportunity is actionable.
+
+Refresh Analysis reads the saved data. It can independently score historical games with complete, verified league rules or matching league-scored totals. It averages recent-three and season scoring when the last three games are complete and current availability and role are sufficiently stable. Changed or uncertain roles, missing scoring inputs, and stale history lead to qualitative review. Matchup, weather and team context are shown as evidence. The model has no calibrated numeric adjustment for those factors.
+
+The Weekly GM Review uses only timed archived decisions and finalized results. It reports matched Yahoo and Fantasy GM errors on the same outcomes, observed snap-share changes, and candidate-versus-drop points where both are available. Review these across multiple weeks. The metrics never change model weights.

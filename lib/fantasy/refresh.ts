@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { parseSnapshot, checkPrivateFields, type Snapshot } from "./snapshot.ts";
 import { parseResearch, type Research } from "./research.ts";
-import { timestamp,sourceUrl } from "./inputs.ts";
-import { coverageReport, coverageStatus, type CollectionEvidence, type CoverageReport } from "./coverage.ts";
+import { timestamp,sourceUrl,mergeGameHistory } from "./inputs.ts";
+import { coverageReport, coverageStatus, scoutingCoverage, type CollectionEvidence, type CoverageReport } from "./coverage.ts";
 import { initialState, type AnalysisStore } from "./analysis-service.ts";
 import { mergeTargeted } from "./targeted-refresh.ts";
 import { initialFreshness } from "./freshness.ts";
@@ -40,6 +40,13 @@ async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   // A partial league collection never replaces a known complete source. Retain its original date.
   const retain=!daily&&!!prior&&(!report.trade_ready||!report.standings||!report.scoring||!report.rules);
   const snapshot=retain?prior!.snapshot:bundle.snapshot;
+  if(!daily&&!retain&&prior?.snapshot.league.season===snapshot.league.season){
+    const previous=new Map(prior.snapshot.analysis_inputs?.players.map(p=>[p.id,p]));
+    for(const p of snapshot.analysis_inputs?.players??[]){
+      const old=previous.get(p.id);
+      if(old?.name===p.name&&old.position===p.position&&old.history?.length)p.history=mergeGameHistory(old.history,p.history??[]);
+    }
+  }
   let research=bundle.research??state.research;
   if(research&&state.research&&Date.parse(research.collected_at)<Date.parse(state.research.collected_at))throw new Error("Research is older than saved data.");
   if(bundle.research&&state.research){
@@ -49,6 +56,7 @@ async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
     if(old.length)report.limitations=[...report.limitations,`${old.length} earlier research findings retained with their original retrieval/publication dates.`];
   }
   report.retained=retain;report.yahoo_at=snapshot.captured_at;report.research_at=research?.collected_at??null;
+  report.scouting=scoutingCoverage(snapshot,research,bundle.collection.sources,now);
   if(retain)report.limitations=[...report.limitations,"Yahoo collection incomplete: previous valid Yahoo snapshot retained with its original capture date; counts above describe the attempted collection."];
   if(!bundle.research&&state.research)report.limitations=[...report.limitations,"Previous research retained with its original collection date."];
   report.import_status="Saved";report.findings_imported=research?.findings.length??0;
