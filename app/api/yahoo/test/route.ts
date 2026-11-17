@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { yahooSessions } from "../../../../lib/yahoo-session";
 import { requireOwner } from "@/lib/auth/owner";
+import { hostedYahooAccess } from "@/lib/fantasy/yahoo-hosted";
+import { verifyYahooLeague } from "@/lib/fantasy/yahoo-probe";
 
 export async function GET(request: NextRequest) {
   await requireOwner();
   if (process.env.YAHOO_FANTASY_API_ENABLED !== "true") {
     return NextResponse.json(
-      { connected: false, error: "Fantasy API access is disabled pending Yahoo approval. Use manual snapshots." },
+      { connected: false, error: "Fantasy API access is disabled. Use manual snapshots." },
       { status: 403, headers: { "Cache-Control": "no-store" } }
     );
+  }
+  if (process.env.VERCEL) {
+    const headers = { "Cache-Control": "private, no-store" };
+    try {
+      const access = await hostedYahooAccess();
+      if (!access) return NextResponse.json({ connected: false, error: "Connect your Yahoo account first." }, { status: 409, headers });
+      return NextResponse.json(await verifyYahooLeague(access), { headers });
+    } catch {
+      return NextResponse.json({ connected: false, error: "Could not verify the private Yahoo roster. If the connection has expired, reconnect Yahoo and retry." }, { status: 502, headers });
+    }
   }
   const sessionId = request.cookies.get("fantasy_gm_session")?.value;
 

@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { requireOwner } from "@/lib/auth/owner";
+import { hostedYahooConfig } from "@/lib/fantasy/yahoo-hosted";
 
 export async function GET() {
   await requireOwner();
-  if (process.env.VERCEL) return NextResponse.json({ error: "Yahoo OAuth uses local memory. Durable encrypted storage is required before enabling it on Vercel." }, { status: 503 });
-  const clientId = process.env.YAHOO_CLIENT_ID;
-  const redirectUri = process.env.YAHOO_REDIRECT_URI;
+  let clientId = process.env.YAHOO_CLIENT_ID;
+  let redirectUri = process.env.YAHOO_REDIRECT_URI;
+  if (process.env.VERCEL) {
+    if (process.env.YAHOO_FANTASY_API_ENABLED !== "true") return NextResponse.json({ error: "Yahoo API access is disabled." }, { status: 403 });
+    try {
+      const config = hostedYahooConfig();
+      clientId = config.id;
+      redirectUri = config.callback;
+    } catch {
+      return NextResponse.json({ error: "Hosted Yahoo OAuth is not configured." }, { status: 503 });
+    }
+  }
 
   if (!clientId || !redirectUri) {
     return NextResponse.json(
@@ -28,6 +38,7 @@ export async function GET() {
   authorizationUrl.searchParams.set("language", "en-us");
 
   const response = NextResponse.redirect(authorizationUrl);
+  response.headers.set("Cache-Control", "private, no-store");
 
   response.cookies.set("yahoo_oauth_state", state, {
     httpOnly: true,
