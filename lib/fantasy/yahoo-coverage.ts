@@ -39,7 +39,7 @@ async function section<T>(load: () => Promise<T>) {
   catch { return { status:"unverified" as const }; }
 }
 
-export async function compareYahooCoverage(access: string, snapshot: Snapshot, request = fetch) {
+export async function compareYahooCoverage(access: string, snapshot: Snapshot, request = fetch, full = false) {
   if (snapshot.league.id !== 121612 || snapshot.league.season !== 2026 || snapshot.team.id !== 5) throw new Error("Saved snapshot belongs to another league.");
   const get = yahooReader(access, request);
   const {gameKey, leagueKey, teamKey} = await yahooLeagueKeys(get);
@@ -58,7 +58,8 @@ export async function compareYahooCoverage(access: string, snapshot: Snapshot, r
     return key ? [{row,key,id:Number(key.split(".").at(-1))}] : [];
   });
   const manual = snapshot.analysis_inputs;
-  const [rosters, matchup, standings, available, faab] = await Promise.all([
+  const deadline = Date.now() + 50000;
+  const [rosters, matchup, standings, available, faab, projections] = await Promise.all([
     section(async () => {
       const result = teams(await get("league/" + leagueKey + "/teams/roster"));
       const rows = result.flatMap(({row,id}) => {
@@ -99,16 +100,19 @@ export async function compareYahooCoverage(access: string, snapshot: Snapshot, r
     section(async () => {
       const ids = new Set<string>();
       let pages = 0, scope_complete = false;
-      // Bound the trial to four pages. Missing manual IDs outside this sample are unknown.
-      for (let start=0;start<100;start+=25) {
-        const page = players(fields(await get("league/" + leagueKey + "/players;status=A;start=" + start + ";count=25"),"players")[0]);
-        if (page.length>25 || page.some(id=>ids.has(id))) throw new Error("Unverified availability pagination.");
+      let stop_reason = "page limit";
+      for (let start=0;start<(full?1600:100);start+=25) {
+        if (Date.now() >= deadline) { stop_reason="time limit"; break; }
+        let page: string[];
+        try { page = players(fields(await get("league/" + leagueKey + "/players;status=A;start=" + start + ";count=25"),"players")[0]); }
+        catch { if (!pages) throw new Error("No verified availability page."); stop_reason="unverified page"; break; }
+        if (page.length>25 || page.some(id=>ids.has(id))) { stop_reason="invalid or repeated player rows"; break; }
         page.forEach(id=>ids.add(id));
         pages++;
-        if (page.length<25) { scope_complete=true; break; }
+        if (page.length<25) { scope_complete=true; stop_reason="end of Yahoo collection"; break; }
       }
       const comparison=compareIds(ids,manual?.available_ids?.map(manualId));
-      return {...comparison, manual_only:scope_complete?comparison.manual_only:null, pages, scope_complete, scope:"Yahoo available players (free agents and waivers), up to 100 returned rows"};
+      return {...comparison, manual_only:scope_complete?comparison.manual_only:null, pages, scope_complete, stop_reason, scope:"Yahoo available players (free agents and waivers)"};
     }),
     section(async () => {
       const result=teams(await get("team/" + teamKey));
@@ -117,10 +121,27 @@ export async function compareYahooCoverage(access: string, snapshot: Snapshot, r
       if (balance===null || balance<0) throw new Error("FAAB missing.");
       return { api_remaining:balance, manual_remaining:snapshot.team.faab_remaining??null };
     }),
+    full ? section(async () => {
+      if (apiWeek===null || !Number.isInteger(apiWeek) || apiWeek<1 || apiWeek>18) throw new Error("Week missing.");
+      const owner = await get("team/" + teamKey + "/roster;week=" + apiWeek);
+      if (!scalar(owner,"team_key", key=>key===teamKey)) throw new Error("Owner roster missing.");
+      const keys = players(fields(owner,"players")[0]).slice(0,10).map(id=>gameKey+".p."+id);
+      if (!keys.length) throw new Error("No sample players.");
+      const result = await get("league/" + leagueKey + "/players;player_keys=" + keys.join(",") + "/stats;type=week;week=" + apiWeek);
+      const rows = indexed(fields(result,"players")[0],"player");
+      const sampleIds = new Set(keys.map(key=>key.split(".").at(-1)));
+      const matching = rows.filter(row=>sampleIds.has(playerId(row)));
+      if (!matching.length || new Set(matching.map(playerId)).size!==matching.length) throw new Error("Sample identities invalid.");
+      const covered = matching.filter(row=>fields(row,"player_projected_points").some(value=>
+        numberField(value,"week")===apiWeek && numberField(value,"total")!==null));
+      return {week:apiWeek, requested:keys.length, returned:matching.length, verified_projection_count:covered.length,
+        actual_points_count:matching.filter(row=>fields(row,"player_points").some(value=>numberField(value,"total")!==null)).length,
+        sample_verified:covered.length===keys.length};
+    }) : Promise.resolve({status:"not_checked" as const}),
   ]);
   return { compared_at:new Date().toISOString(), manual_captured_at:snapshot.captured_at, api_week:apiWeek,
-    manual_week:snapshot.week, rosters, matchup, standings, available, faab,
+    manual_week:snapshot.week, rosters, matchup, standings, available, faab, projections,
     limitations:["Manual and API readings can differ because they were captured at different times.",
-      "Availability comparison is a bounded sample. Weekly player projections and external research were not compared."],
+      "Availability is complete only when Yahoo pagination reaches its end. Projection checking requires a distinct player projection field and an explicit matching week. External research is separate."],
   };
 }

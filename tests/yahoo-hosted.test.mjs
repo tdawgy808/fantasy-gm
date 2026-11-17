@@ -72,3 +72,33 @@ test("Yahoo coverage compares team identities, measures same-week data and keeps
   assert.equal(report.available.overlap,1);
   assert.equal(report.faab.status,"unverified");
 });
+
+test("Full Yahoo check distinguishes weekly actuals from projections and traverses extra pages", async () => {
+  const { compareYahooCoverage } = await import("../lib/fantasy/yahoo-coverage.ts");
+  const { fixture } = await import("./engine-fixture.mjs");
+  const league = "123.l.121612", team = league+".t.5";
+  const collection = ids => ({count:ids.length,...Object.fromEntries(ids.map((id,i)=>[i,{player:[[{player_key:"123.p."+id}],{player_points:{week:9,total:0}}]}]))});
+  let pages=0;
+  const request=async (url)=>{
+    const path=new URL(url).pathname;
+    let data;
+    if(path.includes("/games;"))data={games:{0:{game:[{game_key:"123",season:"2026"}]}}};
+    else if(path.endsWith("/"+league))data={league:[{league_key:league,current_week:9}]};
+    else if(path.includes("/players;status=A")) {
+      const start=Number(path.match(/start=(\d+)/)[1]);
+      pages++;
+      data={players:collection(Array.from({length:start<100?25:1},(_,i)=>start+i+10))};
+    }
+    else if(path.includes("/roster;week="))data={team:[[{team_key:team}],{roster:{players:collection([1])}}]};
+    else if(path.includes("/stats;"))data={players:collection([1])};
+    else return new Response(null,{status:404});
+    return Response.json({fantasy_content:data});
+  };
+  const report=await compareYahooCoverage(grant.access,fixture(),request,true);
+  assert.equal(pages,5);
+  assert.equal(report.available.api_count,101);
+  assert.equal(report.available.scope_complete,true);
+  assert.equal(report.projections.actual_points_count,1);
+  assert.equal(report.projections.verified_projection_count,0);
+  assert.equal(report.projections.sample_verified,false);
+});

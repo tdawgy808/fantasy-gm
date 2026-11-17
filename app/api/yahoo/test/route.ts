@@ -5,6 +5,7 @@ import { hostedYahooAccess } from "@/lib/fantasy/yahoo-hosted";
 import { verifyYahooLeague } from "@/lib/fantasy/yahoo-probe";
 import { compareYahooCoverage } from "@/lib/fantasy/yahoo-coverage";
 import { analysisStore } from "@/lib/fantasy/analysis-store";
+export const maxDuration = 90;
 
 export async function GET(request: NextRequest) {
   await requireOwner();
@@ -19,10 +20,11 @@ export async function GET(request: NextRequest) {
     try {
       const access = await hostedYahooAccess();
       if (!access) return NextResponse.json({ connected: false, error: "Connect your Yahoo account first." }, { status: 409, headers });
-      if (request.nextUrl.searchParams.get("compare") === "1") {
+      const compare = request.nextUrl.searchParams.get("compare");
+      if (compare === "1" || compare === "full") {
         const saved = await analysisStore.yahoo();
         if (!saved) return NextResponse.json({ error: "Save a manual snapshot before comparing." }, { status: 409, headers });
-        return NextResponse.json(await compareYahooCoverage(access, saved.snapshot), { headers });
+        return NextResponse.json(await compareYahooCoverage(access, saved.snapshot, fetch, compare === "full"), { headers });
       }
       return NextResponse.json(await verifyYahooLeague(access), { headers });
     } catch {
