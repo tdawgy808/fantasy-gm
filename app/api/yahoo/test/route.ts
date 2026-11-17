@@ -3,6 +3,8 @@ import { yahooSessions } from "../../../../lib/yahoo-session";
 import { requireOwner } from "@/lib/auth/owner";
 import { hostedYahooAccess } from "@/lib/fantasy/yahoo-hosted";
 import { verifyYahooLeague } from "@/lib/fantasy/yahoo-probe";
+import { compareYahooCoverage } from "@/lib/fantasy/yahoo-coverage";
+import { analysisStore } from "@/lib/fantasy/analysis-store";
 
 export async function GET(request: NextRequest) {
   await requireOwner();
@@ -17,6 +19,11 @@ export async function GET(request: NextRequest) {
     try {
       const access = await hostedYahooAccess();
       if (!access) return NextResponse.json({ connected: false, error: "Connect your Yahoo account first." }, { status: 409, headers });
+      if (request.nextUrl.searchParams.get("compare") === "1") {
+        const saved = await analysisStore.yahoo();
+        if (!saved) return NextResponse.json({ error: "Save a manual snapshot before comparing." }, { status: 409, headers });
+        return NextResponse.json(await compareYahooCoverage(access, saved.snapshot), { headers });
+      }
       return NextResponse.json(await verifyYahooLeague(access), { headers });
     } catch {
       return NextResponse.json({ connected: false, error: "Could not verify the private Yahoo roster. If the connection has expired, reconnect Yahoo and retry." }, { status: 502, headers });

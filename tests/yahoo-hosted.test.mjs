@@ -38,3 +38,37 @@ test("connection check makes only read requests and verifies the correct private
   assert.match(requests[1][0],/\/team\/123\.l\.121612\.t\.5\/roster\?format=json$/);
   await assert.rejects(verifyYahooLeague(grant.access,mock("123.l.121612.t.6")));
 });
+
+test("Yahoo coverage compares team identities, measures same-week data and keeps missing FAAB unknown", async () => {
+  const { compareYahooCoverage } = await import("../lib/fantasy/yahoo-coverage.ts");
+  const { fixture } = await import("./engine-fixture.mjs");
+  const league = "123.l.121612";
+  const collection = (kind, rows) => Object.assign({count:rows.length},Object.fromEntries(rows.map((row,i)=>[i,{[kind]:row}])));
+  const players = ids => collection("player",ids.map(id=>[[{player_key:"123.p."+id}]]));
+  const team = (id, extra = {}) => [[{team_key:league+".t."+id}],extra];
+  const manual=fixture();
+  manual.analysis_inputs.teams[0].roster=[{player_id:"yahoo:7",slot:"RB"}];
+  manual.analysis_inputs.available_ids=["yahoo:6","yahoo:9"];
+  const request=async (url,opts)=>{
+    assert.equal(opts.method,"GET");
+    const path=new URL(url).pathname;
+    let data;
+    if(path.includes("/games;"))data={games:{0:{game:[{game_key:"123",season:"2026"}]}}};
+    else if(path.endsWith("/"+league))data={league:[{league_key:league,current_week:10,num_teams:2}]};
+    else if(path.endsWith("/teams/roster"))data={league:[{teams:collection("team",[team(5,{roster:{players:players([7,8])}}),team(2,{roster:{players:players([11])}})])}]};
+    else if(path.includes("/scoreboard;"))data={scoreboard:{matchups:collection("matchup",[{teams:collection("team",[team(5,{team_points:{total:0}}),team(2)])}])}};
+    else if(path.endsWith("/standings"))data={standings:{teams:collection("team",[team(5,{team_standings:{rank:"2"}})])}};
+    else if(path.includes("/players;"))data={players:players([6,10])};
+    else if(path.endsWith("/team/"+league+".t.5"))data={team:team(5)};
+    else throw Error("Unexpected Yahoo route");
+    return Response.json({fantasy_content:data});
+  };
+  const report=await compareYahooCoverage(grant.access,manual,request);
+  assert.equal(report.rosters.teams[0].overlap,1);
+  assert.equal(report.matchup.same_week,false);
+  assert.equal(report.matchup.api_points,0);
+  assert.equal(report.matchup.manual_points,null);
+  assert.equal(report.standings.api_owner_rank,2);
+  assert.equal(report.available.overlap,1);
+  assert.equal(report.faab.status,"unverified");
+});
