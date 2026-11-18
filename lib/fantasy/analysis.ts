@@ -30,7 +30,7 @@ export function recommendations(snapshot: Snapshot): Advice[] {
   return advice;
 }
 
-export type Standing = { rank: number; team: string; record: string; pf: number; pa: number; faab: number };
+export type Standing = { rank: number; team: string; record: string; pf: number; pa: number; faab: number|null };
 export type Available = { name: string; position: string; status: string; projection: number };
 export function standings(snapshot: Snapshot): Standing[] {
   return (snapshot.standings || []).filter(Array.isArray).map(row => ({ rank: row[0], team: row[1], record: row[2], pf: row[3], pa: row[4], faab: row[6] }));

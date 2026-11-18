@@ -1,21 +1,21 @@
 import type { Snapshot } from "./snapshot.ts";
 import { findValue, yahooLeagueKeys, yahooReader } from "./yahoo-probe.ts";
 
-function fields(value: unknown, field: string): unknown[] {
+export function fields(value: unknown, field: string): unknown[] {
   if (!value || typeof value !== "object") return [];
   return Object.entries(value).flatMap(([key, child]) => key === field ? [child] : fields(child, field));
 }
 
-function scalar(value: unknown, field: string, matches: (value: string) => boolean = () => true) {
+export function scalar(value: unknown, field: string, matches: (value: string) => boolean = () => true) {
   return findValue(value, field, matches);
 }
 
-function numberField(value: unknown, field: string) {
+export function numberField(value: unknown, field: string) {
   const raw = scalar(value, field, v => v.trim() !== "" && Number.isFinite(Number(v)));
   return raw === undefined ? null : Number(raw);
 }
 
-function indexed(collection: unknown, resource: string) {
+export function indexed(collection: unknown, resource: string) {
   if (!collection || typeof collection !== "object") throw new Error("Collection missing.");
   const rows = Object.entries(collection).filter(([key]) => /^\d+$/.test(key))
     .flatMap(([, entry]) => entry && typeof entry === "object" && resource in entry ? [entry[resource as keyof typeof entry]] : []);

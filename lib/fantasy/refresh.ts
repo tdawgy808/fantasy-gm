@@ -27,18 +27,21 @@ export function parseRefresh(raw:string):RefreshBundle{
   const final_results=b.final_results?.map((r:unknown)=>parseFinalResults(r));
   return {schema_version:1,snapshot,research,collection:e,...(final_results?{final_results}:{})};
 }
-async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
+async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now(),hybridBase?:string){
   const id=randomUUID(),at=new Date(now).toISOString(),record=await store.read(),state=record?.value??initialState();
   const prior=await store.yahoo();
+  if(hybridBase!==undefined&&prior?.etag!==hybridBase)throw Error("Saved Yahoo data changed during collection. Retry the hybrid refresh.");
   const incoming=JSON.parse(raw),daily=incoming?.schema_version===2&&incoming?.mode==="daily";
   if(daily&&!prior)throw Error("A comprehensive baseline is required.");
   const bundle=parseRefresh(daily?JSON.stringify(mergeTargeted(incoming,prior!.snapshot,state.coverage)):raw);
-  if(!daily){bundle.snapshot.data_freshness=initialFreshness(bundle.snapshot);bundle.snapshot.research_checked_at=Object.fromEntries(bundle.collection.researched_player_ids.map(id=>[id,bundle.research?.collected_at??bundle.snapshot.captured_at]));}
+  if(!daily&&hybridBase===undefined){bundle.snapshot.data_freshness=initialFreshness(bundle.snapshot);bundle.snapshot.research_checked_at=Object.fromEntries(bundle.collection.researched_player_ids.map(id=>[id,bundle.research?.collected_at??bundle.snapshot.captured_at]));}
   if(!daily){const current=bundle.snapshot.analysis_inputs,old=prior?.snapshot.analysis_inputs;bundle.snapshot.refresh_changes={newly_available:(current?.available_ids??[]).filter(id=>!old?.available_ids?.includes(id)),recently_added:(old?.available_ids??[]).filter(id=>current?.teams?.some(t=>t.roster.some(p=>p.player_id===id))),changed_players:(current?.players??[]).filter(p=>{const before=old?.players.find(o=>o.id===p.id);return before&&(p.status!==before.status||p.projection!==before.projection);}).map(p=>p.id)};}
   if(prior&&Date.parse(bundle.snapshot.captured_at)<=Date.parse(prior.snapshot.captured_at))throw new Error("Refresh must be newer than saved Yahoo data.");
   const report=coverageReport(id,at,bundle.snapshot,bundle.research,bundle.collection);
+  if(hybridBase!==undefined)report.checked_projections=Object.keys(bundle.snapshot.data_freshness?.projections??{}).length;
   // A partial league collection never replaces a known complete source. Retain its original date.
   const retain=!daily&&!!prior&&(!report.trade_ready||!report.standings||!report.scoring||!report.rules);
+  if(hybridBase!==undefined&&retain)throw Error("Hybrid coverage is incomplete.");
   const snapshot=retain?prior!.snapshot:bundle.snapshot;
   if(!daily&&!retain&&prior?.snapshot.league.season===snapshot.league.season){
     const previous=new Map(prior.snapshot.analysis_inputs?.players.map(p=>[p.id,p]));
@@ -66,6 +69,9 @@ async function commitRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   if(!daily&&bundle.final_results?.length)next={...next,...await appendResults(store,next,bundle.final_results,now)};
   if(bundle.snapshot.week>1)report.review_readiness=reviewReadiness(next,bundle.snapshot.league.season,bundle.snapshot.week-1);
   await store.write(next,record?.etag);await store.archive?.(attempt);return next;
+}
+export function saveHybridRefresh(store:AnalysisStore,bundle:RefreshBundle,baseEtag:string){
+  return commitRefresh(store,JSON.stringify(bundle),Date.now(),baseEtag);
 }
 export async function importRefresh(store:AnalysisStore,raw:string,now=Date.now()){
   try{return await commitRefresh(store,raw,now);}catch{

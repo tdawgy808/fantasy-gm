@@ -102,3 +102,41 @@ test("Full Yahoo check distinguishes weekly actuals from projections and travers
   assert.equal(report.projections.verified_projection_count,0);
   assert.equal(report.projections.sample_verified,false);
 });
+
+test("hybrid merges a new week by Yahoo ID and leaves omitted projections unknown", async()=>{
+  const {buildHybridRefresh,readProjectionImport}=await import("../lib/fantasy/yahoo-hybrid.ts");
+  const {fixture}=await import("./engine-fixture.mjs");
+  const base=fixture(), at=new Date(Date.now()-1000).toISOString();
+  const league="123.l.121612";
+  const row=(id,slot)=>[[{player_key:"123.p."+id},{name:{full:"Player "+id}},{primary_position:"RB"},{eligible_positions:[{position:"RB"}]}],{selected_position:[{position:slot}]}];
+  const list=(kind,rows)=>({count:rows.length,...Object.fromEntries(rows.map((r,i)=>[i,{[kind]:r}]))});
+  const teams=(factory)=>({teams:list("team",Array.from({length:10},(_,i)=>factory(i+1)))});
+  const team=(id,extra)=>[[{team_key:league+".t."+id},{name:"Team "+id},{faab_balance:id===5?100:20}],extra];
+  const request=async url=>{
+    const p=new URL(url).pathname;
+    let f;
+    if(p.includes("/games;"))f={games:{0:{game:[{game_key:"123",season:"2026"}]}}};
+    else if(p.endsWith("/"+league))f={league:[{league_key:league,current_week:10}]};
+    else if(p.endsWith("/teams/roster"))f=teams(id=>team(id,{roster:{players:list("player",[row(id,"RB")])}}));
+    else if(p.endsWith("/standings"))f=teams(id=>team(id,{team_standings:{rank:id,points_for:100,points_against:200,outcome_totals:{wins:2,losses:7,ties:0}}}));
+    else if(p.includes("/scoreboard;"))f={scoreboard:{matchups:list("matchup",[{teams:list("team",[5,2].map(id=>team(id,{team_points:{total:0},team_projected_points:{total:30}}))) }])}};
+    else if(p.includes("/players;status=A"))f={players:list("player",[row(42),row(43)])};
+    else throw Error("Unexpected route.");
+    return Response.json({fantasy_content:f});
+  };
+  base.analysis_inputs.available_ids=["yahoo:43"];
+  base.analysis_inputs.players.push({id:"yahoo:43",name:"Player 43",eligible:["RB"],position:"RB",projection:99,actual:12});
+  const rows=[{player_id:"yahoo:5",points:0,game_status:"bye"},{player_id:"yahoo:42",points:10,game_status:"scheduled"}];
+  const report={trade_ready:true,scoring:true,rules:true,transaction_rows:0,transaction_scope:"Previously imported"};
+  const saved=await buildHybridRefresh(grant.access,base,report,readProjectionImport({week:10,captured_at:at,projections:rows}),request);
+  assert.equal(saved.snapshot.week,10);
+  assert.equal(saved.snapshot.roster[0].projection,0);
+  assert.equal(saved.snapshot.roster[0].bye,10);
+  assert.equal(saved.snapshot.data_freshness.projections["yahoo:5"],at);
+  assert.equal(saved.snapshot.analysis_inputs.players.find(p=>p.id==="yahoo:43").projection,undefined);
+  assert.equal(saved.snapshot.analysis_inputs.players.find(p=>p.id==="yahoo:43").actual,undefined);
+  assert.equal(saved.snapshot.standings.length,10);
+  assert.equal(saved.snapshot.team.faab_remaining,100);
+  await assert.rejects(buildHybridRefresh(grant.access,base,report,readProjectionImport({week:9,captured_at:at,projections:rows}),request),/current league week/);
+  assert.throws(()=>readProjectionImport({week:10,captured_at:at,projections:[...rows,rows[0]]}),/duplicate/);
+});

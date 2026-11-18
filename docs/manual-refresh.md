@@ -30,3 +30,15 @@ Optional `matchup`: `opponent`, `score`, `opponent_score`, `live_projection`, `o
 `lib/fantasy/snapshot.ts` defines the `Snapshot` contract and `FantasyDataProvider`. An approved API adapter should normalize to the same versioned contract and validation rules, preserve provenance and freshness, and operate server-side with the existing OAuth sessions. Keep the manual adapter as a fallback. The existing API test route is guarded by `YAHOO_FANTASY_API_ENABLED=false` by default. OAuth login alone does not imply Fantasy API approval.
 
 Before API enablement: confirm Yahoo approval and scopes, implement token refresh/expiry cleanup, harden state consumption and callback failure handling, and choose an authenticated private data store if hosting beyond local development. No transaction endpoints are provided.
+
+## Hybrid Yahoo refresh
+
+In **Data Coverage**, choose **Refresh with Yahoo API** and upload a projection-only JSON file read from your league’s Yahoo website. The file must be from the current league week and captured within the last 24 hours. Use exact Yahoo player IDs, include every active and bench player on your roster, and include the available players you want Fantasy GM to evaluate. Opponent and other roster projections can also be included. Use a JSON null for a missing projection and preserve an explicit zero. Record game status for each numeric projection as scheduled, in progress, final, locked, or bye. Collect the website rows immediately before the refresh to keep game status current.
+
+Example shape with placeholder values:
+
+    {"week":11,"captured_at":"2026-11-17T21:00:00Z","projections":[{"player_id":"yahoo:12345","points":10.5,"game_status":"scheduled"}]}
+
+The API reads all league rosters, the current matchup and standings, your FAAB, and available-player membership through the last page. The dashboard retains available players from the projection file and the previously tracked pool when Yahoo still lists them as available. It does not expand the dashboard to every unprojected API row. Omitted projections stay unknown. The saved data keeps distinct API and website capture times. League rules, schedule and external research retain their previous dates. Import finalized results through the existing Weekly GM Review workflow.
+
+After the hybrid save, use **Refresh Analysis** to generate updated advice. The existing manual refresh import is still available.

@@ -99,7 +99,7 @@ export function parseSnapshot(text: string): Snapshot {
   for (const key of ["scoring", "rules"]) if (value[key] !== undefined && !object(value[key])) fail();
   for (const key of ["standings", "available_players"]) if (value[key] !== undefined && !Array.isArray(value[key])) fail();
   if (Array.isArray(value.standings)) for (const row of value.standings) {
-    if (!Array.isArray(row) || row.length !== 9 || !integer(row[0]) || !string(row[1]) || !string(row[2]) || !number(row[3]) || !number(row[4]) || !string(row[5]) || !number(row[6]) || row[6] < 0 || !integer(row[7]) || !number(row[8])) fail();
+    if (!Array.isArray(row) || row.length !== 9 || !integer(row[0]) || !string(row[1]) || !string(row[2]) || !number(row[3]) || !number(row[4]) || row[5]!==null&&!string(row[5]) || row[6]!==null&&(!number(row[6])||row[6]<0) || row[7]!==null&&!integer(row[7]) || row[8]!==null&&!number(row[8])) fail();
   }
   if (Array.isArray(value.available_players)) for (const row of value.available_players) {
     if (!Array.isArray(row) || row.length !== 4 || !string(row[0]) || !string(row[1]) || !string(row[2]) || row[3]!==null&&!number(row[3])) fail();
